@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบเช็คเวลาทำงาน</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --primary:#1D9E75;--primary-d:#085041;--primary-l:#E1F5EE;
+  --red:#E24B4A;--red-l:#FCEBEB;
+  --orange:#EF9F27;--orange-l:#FAEEDA;
+  --blue:#378ADD;--blue-l:#E6F1FB;
+  --purple:#7F77DD;--purple-l:#EEEDFE;
+  --pink:#D4537E;--pink-l:#FBEAF0;
+  --border:#e2e8f0;--text:#1a202c;--muted:#718096;
+  --bg:#f7fafc;
+}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font-size:14px;}
+
+/* LAYOUT */
+.app{max-width:1500px;margin:0 auto;padding:12px;}
+.card{background:white;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+
+/* TOPBAR */
+.topbar{background:linear-gradient(135deg,#1D9E75,#085041);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.topbar-left h1{color:white;font-size:17px;font-weight:700;}
+.topbar-left p{color:rgba(255,255,255,0.75);font-size:12px;margin-top:2px;}
+.topbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.topbar select{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.15);color:white;font-family:inherit;cursor:pointer;}
+.topbar select option{background:#1D9E75;color:white;}
+
+/* TABS */
+.tabs{display:flex;background:#f8fafc;border-bottom:1px solid var(--border);overflow-x:auto;}
+.tab{padding:11px 18px;font-size:13px;cursor:pointer;font-weight:500;color:var(--muted);border-bottom:3px solid transparent;border:none;background:none;white-space:nowrap;font-family:inherit;transition:all .15s;}
+.tab.active{color:var(--primary);border-bottom:3px solid var(--primary);background:white;}
+.tab:hover:not(.active){color:var(--text);background:white;}
+
+/* PANELS */
+.panel{display:none;padding:18px;}
+.panel.active{display:block;}
+
+/* FORM */
+.form-card{background:white;border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+.form-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+.form-head h3{font-size:14px;font-weight:600;color:var(--text);}
+.fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;}
+.fl{display:flex;flex-direction:column;gap:4px;}
+.fl label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+.fl input,.fl select{width:100%;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-family:inherit;}
+.fl input:focus,.fl select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(29,158,117,.1);}
+.slot-row{margin-top:12px;}
+.slot-row p{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.slots{display:flex;gap:6px;flex-wrap:wrap;}
+.slot-btn{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);font-family:inherit;background:#f8fafc;color:var(--muted);transition:all .15s;}
+.slot-btn.on{background:var(--primary-l);color:var(--primary-d);border-color:var(--primary);}
+.form-acts{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;}
+
+/* BUTTONS */
+.btn{padding:7px 16px;font-size:13px;border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;display:inline-flex;align-items:center;gap:5px;transition:all .15s;border:none;}
+.btn-p{background:var(--primary);color:white;}.btn-p:hover{background:var(--primary-d);}
+.btn-o{background:white;border:1px solid var(--border);color:var(--text);}.btn-o:hover{background:#f8fafc;}
+.btn-r{background:var(--red);color:white;}.btn-r:hover{opacity:.85;}
+.btn-b{background:var(--blue-l);color:#1a365d;border:1px solid #bee3f8;}
+.btn-sm{padding:4px 10px;font-size:11px;border-radius:6px;}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:5px;}
+
+/* TABLES */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;}
+.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tbl th{background:#f8fafc;padding:7px 9px;text-align:center;font-weight:700;border-bottom:1px solid var(--border);white-space:nowrap;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;}
+.tbl td{padding:7px 9px;text-align:center;border-bottom:1px solid #f1f5f9;color:var(--text);font-size:12px;white-space:nowrap;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:#f0fdf9;}
+.td-l{text-align:left!important;font-weight:600;}
+.td-n{color:var(--muted);font-size:11px;}
+.td-in{color:var(--primary);font-weight:700;}
+.td-out{color:var(--red);font-weight:700;}
+.td-ok{color:var(--blue);font-size:11px;}
+.td-no{color:var(--muted);font-size:11px;}
+
+/* WEEKLY REPORT TABLE - match image colors */
+.wk-tbl{width:100%;border-collapse:collapse;font-size:11.5px;}
+.wk-tbl th,.wk-tbl td{border:1px solid #d1d5db;padding:5px 7px;text-align:center;white-space:nowrap;}
+.wk-tbl thead tr:first-child th{font-size:12px;font-weight:700;padding:7px;}
+.wk-head-mon{background:#FAEEDA;color:#744210;}
+.wk-head-tue{background:#FBEAF0;color:#702459;}
+.wk-head-wed{background:#C6F6D5;color:#1a4731;}
+.wk-head-thu{background:#FED7AA;color:#744210;}
+.wk-head-fri{background:#BEE3F8;color:#1a365d;}
+.wk-head-sat{background:#E9D8FD;color:#44337a;}
+.wk-head-sub{font-size:10px;font-weight:600;color:var(--muted);background:#f8fafc;}
+.wk-name{text-align:left!important;font-weight:700;background:#f8fafc;min-width:90px;}
+.wk-num{background:#f8fafc;color:var(--muted);font-size:10px;}
+.wk-in{color:var(--primary);font-weight:700;}
+.wk-out{color:var(--red);font-weight:700;}
+.wk-p{color:var(--blue);font-size:11px;}
+.wk-n{color:var(--muted);font-size:11px;}
+.wk-absent{background:#FED7D7;color:#c53030;font-weight:700;font-size:11px;}
+.wk-leave{background:#FEEBC8;color:#744210;font-size:11px;}
+.wk-sick{background:#BEE3F8;color:#1a365d;font-size:11px;}
+.wk-holiday{background:#E9D8FD;color:#44337a;font-size:11px;font-style:italic;}
+.wk-no-check{background:#E2E8F0;color:#4a5568;font-size:11px;font-style:italic;}
+.wk-late-note{color:var(--orange);font-size:10px;font-weight:700;}
+
+/* STATS */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:18px;}
+.stat-c{background:white;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;}
+.stat-n{font-size:26px;font-weight:700;margin-top:4px;}
+.stat-l{font-size:11px;color:var(--muted);font-weight:600;}
+
+/* BADGE */
+.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;}
+.bg{background:var(--primary-l);color:var(--primary-d);}
+.br{background:var(--red-l);color:#c53030;}
+.bo{background:var(--orange-l);color:#744210;}
+.bb{background:var(--blue-l);color:#1a365d;}
+.bp{background:var(--purple-l);color:#44337a;}
+
+/* ALERT */
+.alert-box{background:#FFFBEB;border:1px solid #F6E05E;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#744210;}
+.alert-box.red{background:var(--red-l);border-color:#FEB2B2;color:#c53030;}
+
+/* SHEETS SETUP */
+.step{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;}
+.step-n{width:24px;height:24px;border-radius:50%;background:var(--primary);color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
+.step-t{font-size:13px;line-height:1.6;color:var(--text);}
+pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-size:10.5px;line-height:1.7;overflow-x:auto;font-family:'Consolas','Courier New',monospace;white-space:pre;}
+.url-row{display:flex;gap:8px;margin-top:12px;}
+.url-row input{flex:1;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-family:inherit;}
+.conn-status{margin-top:8px;font-size:12px;min-height:18px;}
+.section-h{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
+
+/* WEEK NAV */
+.week-nav{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+.week-lbl{font-size:14px;font-weight:700;color:var(--text);}
+.week-legend{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);}
+.leg-dot{width:12px;height:12px;border-radius:3px;}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100;display:none;}
+.modal{background:white;border-radius:14px;padding:20px;width:min(420px,95vw);box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:14px;}
+.modal-acts{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+
+/* EXPORT MENU */
+.export-dropdown{position:relative;display:inline-block;}
+.export-menu{position:absolute;right:0;top:calc(100% + 4px);background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;min-width:160px;display:none;}
+.export-menu.open{display:block;}
+.export-item{padding:9px 14px;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:8px;}
+.export-item:hover{background:#f8fafc;}
+
+/* NOTIFICATION BELL */
+.notif-btn{position:relative;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;}
+.notif-badge{position:absolute;top:-5px;right:-5px;background:var(--red);color:white;border-radius:50%;width:16px;height:16px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;background:#1a202c;color:white;padding:10px 18px;border-radius:10px;font-size:13px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,.25);}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="card">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <h1>📋 ระบบเช็คเวลาทำงาน</h1>
+    <p id="topbar-date">—</p>
+  </div>
+  <div class="topbar-right">
+    <select id="gs-indicator" style="display:none;background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.5);">
+      <option>🟢 Google Sheets เชื่อมต่อแล้ว</option>
+    </select>
+    <div class="export-dropdown" id="exp-wrap">
+      <button class="btn btn-o btn-sm notif-btn" onclick="toggleExport()">⬇ Export ▾</button>
+      <div class="export-menu" id="exp-menu">
+        <div class="export-item" onclick="exportCSV()">📄 Export CSV</div>
+        <div class="export-item" onclick="printWeeklyReport()">🖨 พิมพ์รายงานสัปดาห์</div>
+        <div class="export-item" onclick="printMonthlyReport()">📊 พิมพ์รายงานเดือน</div>
+      </div>
+    </div>
+    <button class="notif-btn" onclick="showAlerts()" id="notif-btn" style="display:none;">
+      🔔 แจ้งเตือน <span class="notif-badge" id="notif-count">0</span>
+    </button>
+    <select id="month-sel" class="topbar" onchange="onMonthChange()" style="min-width:140px;"></select>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('input',this)">✍️ บันทึกเวลา</button>
+  <button class="tab" onclick="switchTab('weekly',this)">📅 รายงานรายสัปดาห์</button>
+  <button class="tab" onclick="switchTab('monthly',this)">📊 สรุปรายเดือน</button>
+  <button class="tab" onclick="switchTab('employees',this)">👥 พนักงาน</button>
+  <button class="tab" onclick="switchTab('sheets',this)">⚙️ Google Sheets</button>
+</div>
+
+<!-- ── TAB: INPUT ── -->
+<div id="tab-input" class="panel active">
+  <div id="alerts-container"></div>
+  <div class="form-card">
+    <div class="form-head">
+      <h3>บันทึกเวลาเข้า-ออกงาน</h3>
+      <div style="font-size:12px;color:var(--muted);" id="today-label2">—</div>
+    </div>
+    <div class="fg">
+      <div class="fl"><label>พนักงาน *</label><select id="emp-sel"></select></div>
+      <div class="fl"><label>วันที่ *</label><input type="date" id="e-date"></div>
+      <div class="fl"><label>เวลาเข้า (IN)</label><input type="time" id="e-in" value="09:00"></div>
+      <div class="fl"><label>เวลาออก (OUT)</label><input type="time" id="e-out" value="17:00"></div>
+      <div class="fl"><label>สถานะ</label>
+        <select id="e-status" onchange="onStatusChange()">
+          <option value="normal">✅ ปกติ</option>
+          <option value="late">⏰ มาสาย</option>
+          <option value="absent">❌ ขาดงาน</option>
+          <option value="leave">🌴 ลาพักร้อน</option>
+          <option value="sick">🤒 ลาป่วย</option>
+        </select>
+      </div>
+    </div>
+    <div class="slot-row">
+      <p>ช่วงเวลาที่อยู่สำนักงาน</p>
+      <div class="slots">
+        <button class="slot-btn on" onclick="toggleSlot(this,'9-11')">9–11 น.</button>
+        <button class="slot-btn on" onclick="toggleSlot(this,'13-15')">13–15 น.</button>
+        <button class="slot-btn on" onclick="toggleSlot(this,'15-17')">15–17 น.</button>
+      </div>
+    </div>
+    <div class="form-acts">
+      <button class="btn btn-p" onclick="addEntry()">💾 บันทึก</button>
+      <button class="btn btn-o" onclick="clearForm()">🗑 ล้างฟอร์ม</button>
+      <button class="btn btn-b btn-sm" onclick="bulkHolidayModal()">📌 ตั้งวันหยุด/ไม่เช็ค</button>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div class="section-h">รายการวันนี้ <span id="today-cnt" class="badge bb">0</span></div>
+    <div style="font-size:12px;color:var(--muted);" id="sync-status"></div>
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>IN</th><th>9–11</th><th>13–15</th><th>15–17</th><th>OUT</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+      <tbody id="today-body"></tbody>
+    </table>
+    <div id="today-empty" style="text-align:center;padding:28px;color:var(--muted);font-size:13px;">ยังไม่มีรายการ — กรอกข้อมูลด้านบน</div>
+  </div>
+</div>
+
+<!-- ── TAB: WEEKLY REPORT ── -->
+<div id="tab-weekly" class="panel">
+  <div class="week-nav">
+    <button class="btn btn-o btn-sm" onclick="wkChange(-1)">← ก่อนหน้า</button>
+    <span class="week-lbl" id="wk-label">—</span>
+    <button class="btn btn-o btn-sm" onclick="wkChange(1)">ถัดไป →</button>
+    <div style="font-size:12px;color:var(--primary);cursor:pointer;margin-left:4px;" onclick="wkReset()">กลับสัปดาห์นี้</div>
+    <div class="week-legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#FAEEDA;"></div>จันทร์</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#FBEAF0;"></div>อังคาร</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#C6F6D5;"></div>พุธ</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#FED7AA;"></div>พฤหัส</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#BEE3F8;"></div>ศุกร์</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#E9D8FD;"></div>เสาร์</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#FED7D7;"></div>ขาด</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#E9D8FD;"></div>หยุด/ไม่เช็ค</div>
+    </div>
+  </div>
+
+  <!-- Day note row for holidays/no-check per day -->
+  <div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;" id="day-note-bar">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">หมายเหตุรายวัน (วันหยุดบริษัท / ผู้ตรวจลา)</div>
+    <div id="day-note-inputs" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+  </div>
+
+  <div class="tbl-wrap" id="wk-wrap">
+    <table class="wk-tbl" id="wk-tbl">
+      <thead id="wk-head"></thead>
+      <tbody id="wk-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── TAB: MONTHLY SUMMARY ── -->
+<div id="tab-monthly" class="panel">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <span style="font-size:13px;font-weight:600;">เดือน:</span>
+    <select id="sum-month" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);" onchange="renderMonthly()"></select>
+  </div>
+  <div class="stat-grid" id="stat-grid"></div>
+  <div class="section-h">สรุปรายบุคคล</div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อพนักงาน</th><th>มาทำงาน</th><th>ขาดงาน</th><th>ลาพักร้อน</th><th>ลาป่วย</th><th>มาสาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม.รวมเฉลี่ย</th></tr></thead>
+      <tbody id="monthly-body"></tbody>
+    </table>
+  </div>
+  <div style="margin-top:14px;">
+    <div class="section-h">สถิติการมาสาย/ขาดงาน (แสดงเฉพาะที่มีเหตุการณ์)</div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>วันที่</th><th>เหตุการณ์</th><th>เวลา IN</th></tr></thead>
+        <tbody id="incidents-body"></tbody>
+      </table>
+      <div id="incidents-empty" style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">ไม่มีเหตุการณ์สายหรือขาดงาน 🎉</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: EMPLOYEES ── -->
+<div id="tab-employees" class="panel">
+  <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap;">
+    <div class="fl" style="flex:1;max-width:250px;"><label>ชื่อพนักงานใหม่</label><input type="text" id="new-emp" placeholder="เช่น สมชาย(ชาย)"></div>
+    <div class="fl"><label>ตำแหน่ง</label><input type="text" id="new-pos" placeholder="เช่น พนักงาน" style="max-width:160px;"></div>
+    <button class="btn btn-p" onclick="addEmployee()">+ เพิ่ม</button>
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th style="text-align:left;">ตำแหน่ง</th><th>รายการทั้งหมด</th><th>ล่าสุด</th><th>จัดการ</th></tr></thead>
+      <tbody id="emp-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── TAB: GOOGLE SHEETS ── -->
+<div id="tab-sheets" class="panel">
+  <div class="form-card" style="margin-bottom:14px;">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">🔗 การตั้งค่า Google Sheets</h3>
+    <div class="step"><div class="step-n">1</div><div class="step-t">เปิด <strong>Google Sheets</strong> ใหม่ → <strong>Extensions → Apps Script</strong> → ลบโค้ดเดิมออก</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-t">คัดลอก Script ด้านล่าง วางทั้งหมด → กด <strong>Save (Ctrl+S)</strong></div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-t"><strong>Deploy → New Deployment</strong> → Type: <strong>Web app</strong><br>Execute as: <strong>Me</strong> · Who has access: <strong>Anyone</strong> → <strong>Deploy</strong> → อนุมัติสิทธิ์ → Copy URL</div></div>
+    <div class="step"><div class="step-n">4</div><div class="step-t">วาง URL ด้านล่าง → กด <strong>เชื่อมต่อ</strong></div></div>
+    <div class="url-row">
+      <input type="text" id="sh-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+      <button class="btn btn-p" onclick="connectSheets()">🔌 เชื่อมต่อ</button>
+      <button class="btn btn-b" id="sh-test-btn" onclick="testSheets()" style="display:none;">🧪 ทดสอบ</button>
+    </div>
+    <div class="conn-status" id="sh-status"></div>
+    <hr class="divider">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div class="section-h" style="margin:0;">📄 Apps Script</div>
+      <button class="btn btn-o btn-sm" onclick="copyScript()">📋 คัดลอก Script</button>
+    </div>
+    <pre class="code" id="script-code">const SHEET_NAME = 'Attendance';
+const NOTE_SHEET = 'DayNotes';
+
+function doGet(e) {
+  const a = e.parameter.action;
+  if (a === 'getAll')    return respond({rows: getRows()});
+  if (a === 'getNotes')  return respond({notes: getNotes()});
+  return respond({error: 'unknown action'});
+}
+
+function doPost(e) {
+  try {
+    const d = JSON.parse(e.postData.contents);
+    if (d.action === 'saveNote') return saveNote(d);
+    return saveEntry(d);
+  } catch(err) {
+    return respond({error: err.toString()});
+  }
+}
+
+function saveEntry(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAME);
+    const hdrs = ['ID','วันที่','ชื่อพนักงาน','เวลาIN','9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
+    sh.appendRow(hdrs);
+    sh.getRange(1,1,1,hdrs.length).setFontWeight('bold')
+      .setBackground('#1D9E75').setFontColor('white');
+  }
+  // Remove existing same person+date
+  const data = sh.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (data[i][1] == d.date && data[i][2] == d.name) sh.deleteRow(i + 1);
+  }
+  sh.appendRow([d.id||Utilities.getUuid().substring(0,8),
+    d.date, d.name, d.timeIn, d.slot1, d.slot2, d.slot3,
+    d.timeOut, d.status, new Date().toLocaleString('th-TH')]);
+  return respond({success: true});
+}
+
+function saveNote(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(NOTE_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(NOTE_SHEET);
+    sh.appendRow(['วันที่','ประเภท','หมายเหตุ']);
+    sh.getRange(1,1,1,3).setFontWeight('bold').setBackground('#7F77DD').setFontColor('white');
+  }
+  const data = sh.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (data[i][0] == d.date) sh.deleteRow(i + 1);
+  }
+  if (d.note) sh.appendRow([d.date, d.type, d.note]);
+  return respond({success: true});
+}
+
+function getRows() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) return [];
+  const data = sh.getDataRange().getValues();
+  const hdrs = data[0];
+  return data.slice(1).map(r => {
+    const obj = {};
+    hdrs.forEach((h,i) => obj[String(h)] = r[i]);
+    return obj;
+  });
+}
+
+function getNotes() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(NOTE_SHEET);
+  if (!sh) return [];
+  const data = sh.getDataRange().getValues();
+  const hdrs = data[0];
+  return data.slice(1).map(r => {
+    const obj = {};
+    hdrs.forEach((h,i) => obj[String(h)] = r[i]);
+    return obj;
+  });
+}
+
+function respond(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>
+    <div id="copy-ok" style="font-size:12px;color:var(--primary);margin-top:6px;display:none;">✅ คัดลอกแล้ว!</div>
+  </div>
+
+  <div class="form-card">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;">📥 ดึงข้อมูลจาก Google Sheets</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">ดึงข้อมูลทั้งหมดจาก Sheets มาแสดงในระบบ (Merge กับข้อมูลที่มีอยู่แล้ว)</p>
+    <button class="btn btn-p" onclick="loadFromSheets()">🔄 ดึงข้อมูล</button>
+    <div id="load-status" style="font-size:12px;margin-top:8px;"></div>
+  </div>
+</div>
+
+</div><!-- end .card -->
+</div><!-- end .app -->
+
+<!-- MODAL: Holiday / No-check -->
+<div class="modal-bg" id="holiday-modal">
+  <div class="modal">
+    <h3>📌 ตั้งค่าวัน</h3>
+    <div class="fg" style="grid-template-columns:1fr;">
+      <div class="fl"><label>วันที่</label><input type="date" id="hol-date"></div>
+      <div class="fl"><label>ประเภท</label>
+        <select id="hol-type">
+          <option value="holiday">🎌 วันหยุดบริษัท</option>
+          <option value="nocheck">📝 ไม่ได้เช็ค (ผู้ตรวจลา)</option>
+        </select>
+      </div>
+      <div class="fl"><label>หมายเหตุ</label><input type="text" id="hol-note" placeholder="เช่น วันหยุดพิเศษ / คุณ... ลาหยุด"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn btn-o" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-p" onclick="saveDayNote()">บันทึก</button>
+      <button class="btn btn-r btn-sm" onclick="removeDayNote()">ลบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── DATA ───
+const EMPLOYEES_DEFAULT = ['มิลินา(มิ้น)','วรนาฎ(อ้อ)','เสาวลักษณ์','สชาติ(บอย)','หนึ่งฤทัย','พิทนันท์(ดิน่า)','ภัณฑิรา(เข้ม)','สลักษ์','ศักดิ์นรินทร์','ธนาวรรธน์','ธนพล(วี)'];
+const MONTHS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const DAYS_TH = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+const DAY_CLASS = ['','wk-head-mon','wk-head-tue','wk-head-wed','wk-head-thu','wk-head-fri','wk-head-sat'];
+const LATE_THRESHOLD = '09:01'; // after this = late
+
+let entries = JSON.parse(localStorage.getItem('att_v3') || '[]');
+let employees = JSON.parse(localStorage.getItem('att_emps') || JSON.stringify(EMPLOYEES_DEFAULT.map(n=>({name:n,pos:'พนักงาน'}))));
+let dayNotes = JSON.parse(localStorage.getItem('att_daynotes') || '{}'); // {dateStr: {type, note}}
+let sheetsUrl = localStorage.getItem('att_shurl') || '';
+let activeSlots = {'9-11':true,'13-15':true,'15-17':true};
+let weekOffset = 0;
+
+const today = new Date();
+const todayStr = toDateStr(today);
+
+function toDateStr(d){ return d.toISOString().split('T')[0]; }
+function save(){ localStorage.setItem('att_v3', JSON.stringify(entries)); }
+function saveEmps(){ localStorage.setItem('att_emps', JSON.stringify(employees)); }
+function saveDayNotes(){ localStorage.setItem('att_daynotes', JSON.stringify(dayNotes)); }
+
+// ─── INIT ───
+function init(){
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  document.getElementById('topbar-date').textContent =
+    `${today.getDate()} ${MONTHS_FULL[m]} ${y+543} · วัน${DAYS_TH[today.getDay()]}`;
+  document.getElementById('today-label2').textContent =
+    `วันนี้: ${today.getDate()} ${MONTHS_TH[m]} ${y+543}`;
+  document.getElementById('e-date').value = todayStr;
+
+  // Month selector in topbar
+  const mSel = document.getElementById('month-sel');
+  for(let i=0;i<6;i++){
+    const d=new Date(y,m-i,1);
+    const opt=document.createElement('option');
+    opt.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    opt.textContent=`${MONTHS_FULL[d.getMonth()]} ${d.getFullYear()+543}`;
+    if(i===0)opt.selected=true;
+    mSel.appendChild(opt);
+  }
+  // Summary month selector
+  const sm = document.getElementById('sum-month');
+  for(let i=0;i<6;i++){
+    const d=new Date(y,m-i,1);
+    const opt=document.createElement('option');
+    opt.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    opt.textContent=`${MONTHS_FULL[d.getMonth()]} ${d.getFullYear()+543}`;
+    if(i===0)opt.selected=true;
+    sm.appendChild(opt);
+  }
+
+  buildEmpSel();
+  renderToday();
+  renderAlerts();
+  if(sheetsUrl){
+    document.getElementById('sh-url').value=sheetsUrl;
+    document.getElementById('sh-test-btn').style.display='';
+    document.getElementById('gs-indicator').style.display='';
+  }
+}
+
+// ─── EMPLOYEE ───
+function buildEmpSel(){
+  const sel = document.getElementById('emp-sel');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- เลือกพนักงาน --</option>';
+  employees.forEach(e => sel.innerHTML += `<option value="${e.name}">${e.name}</option>`);
+  sel.value = cur;
+}
+
+function addEmployee(){
+  const n = document.getElementById('new-emp').value.trim();
+  const p = document.getElementById('new-pos').value.trim()||'พนักงาน';
+  if(!n) return;
+  if(employees.find(e=>e.name===n)){toast('มีพนักงานชื่อนี้แล้ว','red');return;}
+  employees.push({name:n,pos:p});
+  saveEmps(); buildEmpSel(); renderEmployees();
+  document.getElementById('new-emp').value='';
+  toast('เพิ่มพนักงานแล้ว');
+}
+
+function removeEmployee(name){
+  if(!confirm(`ลบพนักงาน "${name}" ออก?`)) return;
+  employees = employees.filter(e=>e.name!==name);
+  entries = entries.filter(e=>e.name!==name);
+  saveEmps(); save(); buildEmpSel(); renderEmployees();
+}
+
+function renderEmployees(){
+  const tbody = document.getElementById('emp-body');
+  tbody.innerHTML='';
+  employees.forEach((emp,i)=>{
+    const cnt = entries.filter(e=>e.name===emp.name).length;
+    const last = entries.filter(e=>e.name===emp.name).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    tbody.innerHTML += `<tr>
+      <td class="td-n">${i+1}</td>
+      <td class="td-l">${emp.name}</td>
+      <td style="text-align:left;color:var(--muted);">${emp.pos}</td>
+      <td><span class="badge bb">${cnt} วัน</span></td>
+      <td style="color:var(--muted);font-size:11px;">${last?last.date:'-'}</td>
+      <td><button class="btn btn-r btn-xs" onclick="removeEmployee('${emp.name.replace(/'/g,"\\'")}')">ลบ</button></td>
+    </tr>`;
+  });
+}
+
+// ─── FORM ───
+function onStatusChange(){
+  const s = document.getElementById('e-status').value;
+  const disabled = s==='absent'||s==='leave'||s==='sick';
+  document.getElementById('e-in').disabled = disabled;
+  document.getElementById('e-out').disabled = disabled;
+  document.querySelectorAll('.slot-btn').forEach(b=>b.disabled=disabled);
+  if(disabled){ document.querySelectorAll('.slot-btn').forEach(b=>b.classList.remove('on')); }
+}
+
+function toggleSlot(btn,slot){
+  activeSlots[slot] = !activeSlots[slot];
+  btn.classList.toggle('on', activeSlots[slot]);
+}
+
+function addEntry(){
+  const name = document.getElementById('emp-sel').value;
+  const date = document.getElementById('e-date').value;
+  const timeIn = document.getElementById('e-in').value;
+  const timeOut = document.getElementById('e-out').value;
+  const status = document.getElementById('e-status').value;
+  if(!name||!date){toast('กรุณาเลือกพนักงานและวันที่','red');return;}
+  // No entry on Sunday
+  const wd = new Date(date).getDay();
+  if(wd===0){toast('วันอาทิตย์ไม่ทำการ','red');return;}
+  entries = entries.filter(e=>!(e.name===name&&e.date===date));
+  const notime = status==='absent'||status==='leave'||status==='sick';
+  const entry = {
+    id: `${date}_${name}_${Date.now()}`,
+    name, date,
+    timeIn: notime?'':timeIn,
+    timeOut: notime?'':timeOut,
+    status,
+    slot1: notime?'-':(activeSlots['9-11']?'อยู่':'ไม่'),
+    slot2: notime?'-':(activeSlots['13-15']?'อยู่':'ไม่'),
+    slot3: notime?'-':(activeSlots['15-17']?'อยู่':'ไม่'),
+  };
+  entries.push(entry); save();
+  if(sheetsUrl) syncEntry(entry);
+  renderToday(); renderAlerts();
+  toast('บันทึกแล้ว ✓');
+  clearForm();
+}
+
+function clearForm(){
+  document.getElementById('emp-sel').value='';
+  document.getElementById('e-date').value=todayStr;
+  document.getElementById('e-in').value='09:00';
+  document.getElementById('e-out').value='17:00';
+  document.getElementById('e-status').value='normal';
+  document.getElementById('e-in').disabled=false;
+  document.getElementById('e-out').disabled=false;
+  activeSlots={'9-11':true,'13-15':true,'15-17':true};
+  document.querySelectorAll('.slot-btn').forEach(b=>{b.classList.add('on');b.disabled=false;});
+}
+
+function deleteEntry(id){
+  entries = entries.filter(e=>e.id!==id);
+  save(); renderToday(); renderAlerts();
+}
+
+function renderToday(){
+  const te = entries.filter(e=>e.date===todayStr);
+  const tbody = document.getElementById('today-body');
+  const empty = document.getElementById('today-empty');
+  document.getElementById('today-cnt').textContent = te.length;
+  tbody.innerHTML=''; empty.style.display=te.length?'none':'';
+  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาด',leave:'🌴 พักร้อน',sick:'🤒 ป่วย'};
+  const SC={normal:'bg',late:'bo',absent:'br',leave:'bo',sick:'bb'};
+  te.forEach((e,i)=>{
+    tbody.innerHTML+=`<tr>
+      <td class="td-n">${i+1}</td>
+      <td class="td-l">${e.name}</td>
+      <td class="td-in">${e.timeIn||'—'}</td>
+      <td class="${e.slot1==='อยู่'?'td-ok':'td-no'}">${e.slot1||'—'}</td>
+      <td class="${e.slot2==='อยู่'?'td-ok':'td-no'}">${e.slot2||'—'}</td>
+      <td class="${e.slot3==='อยู่'?'td-ok':'td-no'}">${e.slot3||'—'}</td>
+      <td class="td-out">${e.timeOut||'—'}</td>
+      <td><span class="badge ${SC[e.status]}">${SM[e.status]}</span></td>
+      <td><button class="btn btn-r btn-xs" onclick="deleteEntry('${e.id}')">ลบ</button></td>
+    </tr>`;
+  });
+}
+
+// ─── ALERTS ───
+function renderAlerts(){
+  const lates = entries.filter(e=>e.status==='late'&&e.date===todayStr);
+  const absents = entries.filter(e=>e.status==='absent'&&e.date===todayStr);
+  const container = document.getElementById('alerts-container');
+  let html='';
+  if(lates.length) html+=`<div class="alert-box">⏰ <strong>มาสาย ${lates.length} คนวันนี้:</strong> ${lates.map(e=>e.name).join(', ')}</div>`;
+  if(absents.length) html+=`<div class="alert-box red">❌ <strong>ขาดงาน ${absents.length} คนวันนี้:</strong> ${absents.map(e=>e.name).join(', ')}</div>`;
+  container.innerHTML=html;
+  // Notif badge
+  const total = lates.length+absents.length;
+  const btn = document.getElementById('notif-btn');
+  btn.style.display = total>0?'':'none';
+  document.getElementById('notif-count').textContent=total;
+}
+
+function showAlerts(){
+  const lates = entries.filter(e=>e.status==='late');
+  const absents = entries.filter(e=>e.status==='absent');
+  alert(`⏰ มาสาย (ทั้งหมด): ${lates.length} ครั้ง\n❌ ขาดงาน (ทั้งหมด): ${absents.length} ครั้ง\n\nวันนี้:\n${lates.filter(e=>e.date===todayStr).map(e=>e.name).join(', ')||'ไม่มี'} (สาย)\n${absents.filter(e=>e.date===todayStr).map(e=>e.name).join(', ')||'ไม่มี'} (ขาด)`);
+}
+
+// ─── WEEKLY REPORT ───
+function getMonWeek(offset){
+  // Monday of current week + offset weeks
+  const d = new Date(today);
+  const day = d.getDay();
+  const diff = day===0 ? -6 : 1-day;
+  d.setDate(d.getDate()+diff+offset*7);
+  return d;
+}
+
+function wkChange(dir){ weekOffset+=dir; renderWeekly(); }
+function wkReset(){ weekOffset=0; renderWeekly(); }
+
+function renderWeekly(){
+  const mon = getMonWeek(weekOffset);
+  const days = [];
+  for(let i=0;i<6;i++){
+    const d=new Date(mon); d.setDate(mon.getDate()+i); // Mon–Sat
+    days.push(d);
+  }
+  const s=days[0], e=days[5];
+  document.getElementById('wk-label').textContent =
+    `${s.getDate()} ${MONTHS_TH[s.getMonth()]} – ${e.getDate()} ${MONTHS_TH[e.getMonth()]} ${e.getFullYear()+543}`;
+
+  // Day note inputs
+  const dnBar = document.getElementById('day-note-inputs');
+  dnBar.innerHTML='';
+  days.forEach(d=>{
+    const ds=toDateStr(d);
+    const dn=dayNotes[ds]||{};
+    const col=DAY_CLASS[d.getDay()];
+    dnBar.innerHTML+=`<div style="display:flex;flex-direction:column;gap:3px;min-width:100px;">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);">${DAYS_TH[d.getDay()]} ${d.getDate()}/${MONTHS_TH[d.getMonth()]}</div>
+      <div style="display:flex;gap:4px;">
+        <input type="text" placeholder="หมายเหตุ" value="${dn.note||''}" 
+          style="font-size:11px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);width:100px;"
+          onchange="quickDayNote('${ds}',this.value,document.getElementById('dntype-${ds}').value)">
+        <select id="dntype-${ds}" style="font-size:11px;padding:3px 5px;border-radius:6px;border:1px solid var(--border);" onchange="quickDayNote('${ds}',this.previousElementSibling.value,this.value)">
+          <option value="">—</option>
+          <option value="holiday" ${dn.type==='holiday'?'selected':''}>🎌 หยุด</option>
+          <option value="nocheck" ${dn.type==='nocheck'?'selected':''}>📝 ไม่เช็ค</option>
+        </select>
+      </div>
+    </div>`;
+  });
+
+  // Table head
+  let head=`<tr>
+    <th rowspan="2" style="background:#1D9E75;color:white;min-width:28px;">มีนาคม</th>
+    <th rowspan="2" style="text-align:left;background:#f8fafc;min-width:90px;">ชื่อ</th>`;
+  days.forEach(d=>{
+    const cl=DAY_CLASS[d.getDay()];
+    head+=`<th colspan="5" class="${cl}">${DAYS_TH[d.getDay()]}/มี.ค. ${String(d.getDate()).padStart(2,'0')}</th>`;
+  });
+  head+='</tr><tr>';
+  days.forEach(()=>{ head+='<th class="wk-head-sub">IN</th><th class="wk-head-sub">9-11</th><th class="wk-head-sub">13-15</th><th class="wk-head-sub">15-17</th><th class="wk-head-sub">OUT</th>'; });
+  head+='</tr>';
+  document.getElementById('wk-head').innerHTML=head;
+
+  // Table body
+  let body='';
+  employees.forEach((emp,idx)=>{
+    body+=`<tr><td class="wk-num">${idx+1}</td><td class="wk-name">${emp.name}</td>`;
+    days.forEach(d=>{
+      const ds=toDateStr(d);
+      const dn=dayNotes[ds]||{};
+      const en=entries.find(x=>x.name===emp.name&&x.date===ds);
+      if(dn.type==='holiday'){
+        body+=`<td colspan="5" class="wk-holiday">🎌 ${dn.note||'วันหยุด'}</td>`;
+      } else if(dn.type==='nocheck'){
+        body+=`<td colspan="5" class="wk-no-check">📝 ${dn.note||'ไม่ได้เช็ค'}</td>`;
+      } else if(!en){
+        body+=`<td colspan="5" style="color:var(--muted);font-size:11px;background:#fafafa;">—</td>`;
+      } else if(en.status==='absent'){
+        body+=`<td colspan="5" class="wk-absent">ขาดงาน</td>`;
+      } else if(en.status==='leave'){
+        body+=`<td colspan="5" class="wk-leave">ลาพักร้อน</td>`;
+      } else if(en.status==='sick'){
+        body+=`<td colspan="5" class="wk-sick">ลาป่วย</td>`;
+      } else {
+        const lateNote = en.status==='late'?`<div class="wk-late-note">สาย</div>`:'';
+        body+=`<td class="wk-in">${en.timeIn||'—'}${lateNote}</td>`;
+        body+=`<td class="wk-p">${en.slot1||'—'}</td>`;
+        body+=`<td class="wk-p">${en.slot2||'—'}</td>`;
+        body+=`<td class="wk-p">${en.slot3||'—'}</td>`;
+        body+=`<td class="wk-out">${en.timeOut||'—'}</td>`;
+      }
+    });
+    body+='</tr>';
+  });
+  document.getElementById('wk-body').innerHTML=body;
+}
+
+function quickDayNote(ds, note, type){
+  if(!type&&!note){ delete dayNotes[ds]; }
+  else { dayNotes[ds]={type, note}; }
+  saveDayNotes();
+  if(sheetsUrl&&(note||type)) syncDayNote(ds, note, type);
+  renderWeekly();
+}
+
+// ─── MONTHLY SUMMARY ───
+function onMonthChange(){ }
+
+function renderMonthly(){
+  const val = document.getElementById('sum-month').value;
+  const [fy,fm] = val.split('-').map(Number);
+  const monthEntries = entries.filter(e=>e.date.startsWith(`${fy}-${String(fm).padStart(2,'0')}`));
+
+  // Stats
+  const workDays = new Set(monthEntries.filter(e=>e.status!=='absent'&&e.status!=='leave'&&e.status!=='sick').map(e=>e.date)).size;
+  const absentCount = monthEntries.filter(e=>e.status==='absent').length;
+  const lateCount = monthEntries.filter(e=>e.status==='late').length;
+  const leaveCount = monthEntries.filter(e=>e.status==='leave'||e.status==='sick').length;
+  document.getElementById('stat-grid').innerHTML=`
+    <div class="stat-c"><div class="stat-l">👥 พนักงาน</div><div class="stat-n" style="color:var(--blue);">${employees.length}</div></div>
+    <div class="stat-c"><div class="stat-l">📅 วันทำงาน</div><div class="stat-n" style="color:var(--primary);">${workDays}</div></div>
+    <div class="stat-c"><div class="stat-l">❌ ขาดงาน</div><div class="stat-n" style="color:var(--red);">${absentCount}</div></div>
+    <div class="stat-c"><div class="stat-l">⏰ มาสาย</div><div class="stat-n" style="color:var(--orange);">${lateCount}</div></div>
+    <div class="stat-c"><div class="stat-l">🌴 ลา</div><div class="stat-n" style="color:var(--purple);">${leaveCount}</div></div>`;
+
+  // Per-employee
+  let body='';
+  employees.forEach((emp,idx)=>{
+    const ee=monthEntries.filter(e=>e.name===emp.name);
+    const cs=s=>ee.filter(e=>e.status===s).length;
+    const normal=ee.filter(e=>e.status==='normal'||e.status==='late').length;
+    const ins=ee.filter(e=>e.timeIn).map(e=>e.timeIn);
+    const outs=ee.filter(e=>e.timeOut).map(e=>e.timeOut);
+    const avgIn=ins.length?avgTime(ins):'—';
+    const avgOut=outs.length?avgTime(outs):'—';
+    const hrs=ee.filter(e=>e.timeIn&&e.timeOut).map(e=>timeDiff(e.timeIn,e.timeOut));
+    const avgHrs=hrs.length?(hrs.reduce((a,b)=>a+b,0)/hrs.length).toFixed(1)+'h':'—';
+    body+=`<tr>
+      <td class="td-n">${idx+1}</td><td class="td-l">${emp.name}</td>
+      <td><span class="badge bg">${normal}</span></td>
+      <td><span class="badge br">${cs('absent')}</span></td>
+      <td>${cs('leave')}</td><td>${cs('sick')}</td>
+      <td>${cs('late')>0?`<span class="badge bo">${cs('late')}</span>`:'0'}</td>
+      <td style="color:var(--primary);font-weight:600;">${avgIn}</td>
+      <td style="color:var(--red);font-weight:600;">${avgOut}</td>
+      <td style="color:var(--muted);">${avgHrs}</td>
+    </tr>`;
+  });
+  document.getElementById('monthly-body').innerHTML=body;
+
+  // Incidents
+  const incidents=monthEntries.filter(e=>e.status==='late'||e.status==='absent').sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('incidents-empty').style.display=incidents.length?'none':'';
+  const ibody=document.getElementById('incidents-body');
+  ibody.innerHTML='';
+  incidents.forEach((e,i)=>{
+    const d=new Date(e.date);
+    ibody.innerHTML+=`<tr>
+      <td class="td-n">${i+1}</td><td class="td-l">${e.name}</td>
+      <td style="color:var(--muted);">${d.getDate()} ${MONTHS_TH[d.getMonth()]} (${DAYS_TH[d.getDay()]})</td>
+      <td><span class="badge ${e.status==='late'?'bo':'br'}">${e.status==='late'?'⏰ มาสาย':'❌ ขาดงาน'}</span></td>
+      <td class="td-in">${e.timeIn||'—'}</td>
+    </tr>`;
+  });
+}
+
+function avgTime(times){
+  const m=times.map(t=>{const[h,mi]=t.split(':').map(Number);return h*60+mi;});
+  const a=Math.round(m.reduce((x,y)=>x+y,0)/m.length);
+  return `${String(Math.floor(a/60)).padStart(2,'0')}:${String(a%60).padStart(2,'0')}`;
+}
+function timeDiff(t1,t2){
+  const[h1,m1]=t1.split(':').map(Number);
+  const[h2,m2]=t2.split(':').map(Number);
+  return ((h2*60+m2)-(h1*60+m1))/60;
+}
+
+// ─── DAY NOTE MODAL ───
+function bulkHolidayModal(){
+  document.getElementById('hol-date').value=todayStr;
+  document.getElementById('hol-note').value='';
+  document.getElementById('hol-type').value='holiday';
+  document.getElementById('holiday-modal').style.display='flex';
+}
+function closeModal(){ document.getElementById('holiday-modal').style.display='none'; }
+function saveDayNote(){
+  const ds=document.getElementById('hol-date').value;
+  const type=document.getElementById('hol-type').value;
+  const note=document.getElementById('hol-note').value.trim();
+  dayNotes[ds]={type,note}; saveDayNotes();
+  if(sheetsUrl) syncDayNote(ds,note,type);
+  closeModal(); renderWeekly(); toast('บันทึกแล้ว ✓');
+}
+function removeDayNote(){
+  const ds=document.getElementById('hol-date').value;
+  delete dayNotes[ds]; saveDayNotes(); closeModal(); renderWeekly();
+}
+
+// ─── SHEETS ───
+function connectSheets(){
+  const url=document.getElementById('sh-url').value.trim();
+  if(!url.includes('script.google.com')){
+    document.getElementById('sh-status').innerHTML='<span style="color:var(--red);">URL ไม่ถูกต้อง</span>'; return;
+  }
+  sheetsUrl=url; localStorage.setItem('att_shurl',url);
+  document.getElementById('sh-status').innerHTML='<span style="color:var(--primary);">✅ บันทึก URL แล้ว ข้อมูลใหม่จะ sync อัตโนมัติ</span>';
+  document.getElementById('sh-test-btn').style.display='';
+  document.getElementById('gs-indicator').style.display='';
+}
+
+async function testSheets(){
+  const st=document.getElementById('sh-status');
+  st.textContent='กำลังทดสอบ...';
+  try{
+    const r=await fetch(sheetsUrl+'?action=getAll');
+    const d=await r.json();
+    st.innerHTML=`<span style="color:var(--primary);">✅ เชื่อมต่อสำเร็จ พบ ${(d.rows||[]).length} รายการใน Sheets</span>`;
+  }catch(e){ st.innerHTML=`<span style="color:var(--red);">❌ ${e.message}</span>`; }
+}
+
+async function syncEntry(entry){
+  if(!sheetsUrl) return;
+  document.getElementById('sync-status').textContent='⏳ กำลัง sync...';
+  try{
+    const r=await fetch(sheetsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(entry)});
+    const d=await r.json();
+    document.getElementById('sync-status').innerHTML=d.success?'<span style="color:var(--primary);">☁️ Sync แล้ว ✓</span>':'<span style="color:var(--red);">⚠️ Sync ล้มเหลว</span>';
+  }catch(e){ document.getElementById('sync-status').innerHTML=`<span style="color:var(--orange);">⚠️ ไม่สามารถ sync: ${e.message}</span>`; }
+}
+
+async function syncDayNote(ds, note, type){
+  if(!sheetsUrl) return;
+  try{
+    await fetch(sheetsUrl,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'saveNote',date:ds,note,type})});
+  }catch(e){ console.warn('note sync failed',e); }
+}
+
+async function loadFromSheets(){
+  if(!sheetsUrl){alert('กรุณาตั้งค่า URL ก่อน');return;}
+  const st=document.getElementById('load-status');
+  st.textContent='กำลังดึงข้อมูล...';
+  try{
+    const r=await fetch(sheetsUrl+'?action=getAll');
+    const d=await r.json();
+    let added=0;
+    (d.rows||[]).forEach(row=>{
+      const name=row['ชื่อพนักงาน']||row[2]||'';
+      const date=row['วันที่']||row[1]||'';
+      if(name&&date&&!entries.find(e=>e.name===name&&e.date===date)){
+        entries.push({id:`${date}_${name}_imported`,name,date,
+          timeIn:row['เวลาIN']||'',timeOut:row['เวลาOUT']||'',
+          status:row['สถานะ']||'normal',
+          slot1:row['9-11']||'',slot2:row['13-15']||'',slot3:row['15-17']||'',});
+        added++;
+      }
+    });
+    // Notes
+    const rn=await fetch(sheetsUrl+'?action=getNotes');
+    const dn=await rn.json();
+    (dn.notes||[]).forEach(n=>{
+      const date=n['วันที่']||n[0]||'';
+      if(date) dayNotes[date]={type:n['ประเภท']||n[1]||'',note:n['หมายเหตุ']||n[2]||''};
+    });
+    save(); saveDayNotes();
+    st.innerHTML=`<span style="color:var(--primary);">✅ โหลดสำเร็จ เพิ่มใหม่ ${added} รายการ</span>`;
+    renderToday(); renderAlerts();
+  }catch(e){ st.innerHTML=`<span style="color:var(--red);">❌ ${e.message}</span>`; }
+}
+
+function copyScript(){
+  const code=document.getElementById('script-code').textContent;
+  navigator.clipboard.writeText(code).then(()=>{
+    const el=document.getElementById('copy-ok');
+    el.style.display='';
+    setTimeout(()=>el.style.display='none',2500);
+  });
+}
+
+// ─── EXPORT ───
+function toggleExport(){
+  document.getElementById('exp-menu').classList.toggle('open');
+  document.addEventListener('click',function handler(e){
+    if(!document.getElementById('exp-wrap').contains(e.target)){
+      document.getElementById('exp-menu').classList.remove('open');
+      document.removeEventListener('click',handler);
+    }
+  });
+}
+
+function exportCSV(){
+  const rows=[['#','ชื่อ','วันที่','IN','9-11','13-15','15-17','OUT','สถานะ']];
+  entries.sort((a,b)=>a.date.localeCompare(b.date)).forEach((e,i)=>{
+    rows.push([i+1,e.name,e.date,e.timeIn,e.slot1,e.slot2,e.slot3,e.timeOut,e.status]);
+  });
+  const csv='\ufeff'+rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`attendance_${todayStr}.csv`;
+  a.click();
+  document.getElementById('exp-menu').classList.remove('open');
+}
+
+function printWeeklyReport(){
+  document.getElementById('exp-menu').classList.remove('open');
+  const w=window.open('','_blank');
+  const tbl=document.getElementById('wk-tbl').outerHTML;
+  const lbl=document.getElementById('wk-label').textContent;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>รายงานสัปดาห์ ${lbl}</title>
+    <style>
+      body{font-family:'Sarabun',sans-serif;padding:20px;font-size:12px;}
+      h2{margin-bottom:12px;font-size:16px;}
+      table{border-collapse:collapse;width:100%;font-size:11px;}
+      th,td{border:1px solid #999;padding:5px 7px;text-align:center;white-space:nowrap;}
+      .wk-head-mon{background:#FAEEDA;} .wk-head-tue{background:#FBEAF0;}
+      .wk-head-wed{background:#C6F6D5;} .wk-head-thu{background:#FED7AA;}
+      .wk-head-fri{background:#BEE3F8;} .wk-head-sat{background:#E9D8FD;}
+      .wk-absent{background:#FED7D7;font-weight:bold;}
+      .wk-leave{background:#FEEBC8;} .wk-sick{background:#BEE3F8;}
+      .wk-holiday{background:#E9D8FD;font-style:italic;}
+      .wk-no-check{background:#E2E8F0;font-style:italic;}
+      .wk-head-sub{background:#f8f8f8;font-size:10px;}
+      .wk-name{text-align:left;font-weight:bold;background:#f8f8f8;}
+      .wk-num{color:#999;font-size:10px;background:#f8f8f8;}
+      .wk-in{color:#1D9E75;font-weight:bold;} .wk-out{color:#E24B4A;font-weight:bold;}
+      .wk-late-note{color:#EF9F27;font-size:10px;font-weight:bold;}
+      @media print{@page{size:A3 landscape;margin:10mm;}}
+    </style></head><body>
+    <h2>รายงานการมาทำงาน — สัปดาห์ ${lbl}</h2>${tbl}
+    <script>window.onload=()=>window.print();<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+function printMonthlyReport(){
+  document.getElementById('exp-menu').classList.remove('open');
+  switchTab('monthly', document.querySelectorAll('.tab')[2]);
+  setTimeout(()=>{
+    const w=window.open('','_blank');
+    const tbl=document.querySelector('#tab-monthly .tbl-wrap').innerHTML;
+    const title=document.getElementById('sum-month').options[document.getElementById('sum-month').selectedIndex].text;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>รายงานเดือน</title>
+      <style>body{font-family:'Sarabun',sans-serif;padding:20px;font-size:12px;}
+      h2{margin-bottom:12px;} table{border-collapse:collapse;width:100%;font-size:11px;}
+      th,td{border:1px solid #ccc;padding:5px 8px;text-align:center;}
+      th{background:#f0f0f0;font-weight:bold;}
+      @media print{@page{size:A4 landscape;margin:10mm;}}</style></head>
+      <body><h2>สรุปการมาทำงาน — ${title}</h2>${tbl}
+      <script>window.onload=()=>window.print();<\/script></body></html>`);
+    w.document.close();
+  },300);
+}
+
+// ─── TABS ───
+function switchTab(id, el){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  el.classList.add('active');
+  if(id==='weekly') renderWeekly();
+  if(id==='monthly') renderMonthly();
+  if(id==='employees') renderEmployees();
+}
+
+// ─── TOAST ───
+function toast(msg, color='green'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.style.background=color==='red'?'#c53030':'#1a202c';
+  el.style.display='block';
+  setTimeout(()=>el.style.display='none',2500);
+}
+
+// close modal on bg click
+document.getElementById('holiday-modal').addEventListener('click',function(e){
+  if(e.target===this) closeModal();
+});
+
+init();
+</script>
+</body>
+</html>
