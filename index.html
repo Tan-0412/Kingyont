@@ -427,13 +427,26 @@ function getRows() {
   if (!sh) return [];
   const data = sh.getDataRange().getValues();
   const hdrs = data[0].map(String);
+  // คอลัมน์ที่เป็น "เวลา" ให้ format HH:mm, คอลัมน์ที่เป็น "วันที่" ให้ format yyyy-MM-dd
+  const timeColumns = ['เวลาIN', 'เวลาOUT', 'IN', 'OUT', 'timeIn', 'timeOut'];
+  const dateColumns = ['วันที่', 'date', 'Date', 'วันที่ทำงาน'];
   return data.slice(1).map(r => {
     const o = {};
     hdrs.forEach((h, i) => {
       const val = r[i];
-      // แปลง Date object เป็น YYYY-MM-DD string
       if (val instanceof Date) {
-        o[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd');
+        const hTrim = h.trim();
+        if (timeColumns.some(tc => tc === hTrim)) {
+          // format เป็น HH:mm สำหรับคอลัมน์เวลา
+          o[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'HH:mm');
+        } else if (dateColumns.some(dc => dc === hTrim)) {
+          // format เป็น yyyy-MM-dd สำหรับคอลัมน์วันที่
+          o[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd');
+        } else {
+          // คอลัมน์อื่น (เช่น บันทึกเมื่อ) — ลอง detect ว่าเป็นเวลาหรือวันที่
+          const formatted = Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+          o[h] = formatted;
+        }
       } else {
         o[h] = val === null || val === undefined ? '' : String(val);
       }
@@ -1373,7 +1386,8 @@ function getField(obj, ...keys){
   return '';
 }
 
-// ดึงข้อมูลจาก Sheets แบบ upsert — robust รองรับทุกรูปแบบ
+// ดึงข้อมูลจาก Sheets — Sheets คือ source of truth เสมอ
+// ล้าง entries ที่ดึงมาจาก Sheets แล้ว rebuild ใหม่ เพื่อป้องกันวันที่เลื่อน/ซ้ำ
 async function refreshFromSheets(){
   try{
     const[d,dn]=await Promise.all([
@@ -1386,16 +1400,14 @@ async function refreshFromSheets(){
       console.log('[Sheets] sample row:', JSON.stringify(d.rows[0]));
       console.log('[Sheets] total rows:', d.rows.length);
 
-      let added=0, updated=0;
+      // แปลง rows จาก Sheets เป็น entries
+      const sheetsEntries=[];
       d.rows.forEach(r=>{
-        // รองรับชื่อ column หลายรูปแบบ
         const name = getField(r,'ชื่อพนักงาน','name','ชื่อ','Name');
         const rawDate = getField(r,'วันที่','date','Date','วันที่ทำงาน');
         const date = parseSheetDate(rawDate);
-
         if(!name||!date||date.length<8) return;
-
-        const entry={
+        sheetsEntries.push({
           id: getField(r,'ID','id') || `${date}_${name}`,
           name, date,
           timeIn:  parseSheetTime(getField(r,'เวลาIN','เวลาเข้า','IN','timeIn','in')),
@@ -1404,14 +1416,17 @@ async function refreshFromSheets(){
           slot1:   getField(r,'9-11','slot1','9-11น'),
           slot2:   getField(r,'13-15','slot2','13-15น'),
           slot3:   getField(r,'15-17','slot3','15-17น'),
-        };
-
-        const idx=entries.findIndex(e=>e.name===name&&e.date===date);
-        if(idx>=0){ entries[idx]=entry; updated++; }
-        else{ entries.push(entry); added++; }
+          _fromSheets: true,
+        });
       });
 
-      console.log(`[Sheets] added=${added}, updated=${updated}, total entries=${entries.length}`);
+      // สร้าง set ของ name+date ที่อยู่ใน Sheets
+      const sheetsKeys=new Set(sheetsEntries.map(e=>`${e.name}__${e.date}`));
+      // เก็บเฉพาะ entries ที่บันทึกในเครื่องเท่านั้น (ไม่มีใน Sheets) + ทับด้วย Sheets
+      const localOnly=entries.filter(e=>!e._fromSheets && !sheetsKeys.has(`${e.name}__${e.date}`));
+      entries=[...sheetsEntries, ...localOnly];
+
+      console.log(`[Sheets] sheetsEntries=${sheetsEntries.length}, localOnly=${localOnly.length}, total=${entries.length}`);
       saveEnt();
     } else {
       console.warn('[Sheets] getAll returned no rows:', d);
