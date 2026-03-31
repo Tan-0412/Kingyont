@@ -108,7 +108,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
 /* modal */
 .mbg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:100;}
 .mbg.show{display:flex;}
-.modal{background:#fff;border-radius:14px;padding:20px;width:min(400px,95vw);box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal{background:#fff;border-radius:14px;padding:20px;width:min(420px,95vw);box-shadow:0 20px 60px rgba(0,0,0,.2);}
 .modal h3{font-size:14px;font-weight:700;margin-bottom:13px;}
 .macts{display:flex;gap:8px;margin-top:15px;justify-content:flex-end;}
 /* export */
@@ -123,6 +123,13 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
 .dvd{border:none;border-top:1px solid var(--bd);margin:14px 0;}
 .nbell{position:relative;}
 .nbadge{position:absolute;top:-5px;right:-5px;background:var(--r);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+/* [FIX3] recent entries header */
+.recent-lbl{font-size:11px;color:var(--mt);margin-left:8px;font-weight:400;}
+/* edit emp modal */
+.edit-emp-row{display:grid;grid-template-columns:1fr 1fr auto auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9;}
+.edit-emp-row:last-child{border-bottom:none;}
+.edit-emp-row input{font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--bd);font-family:inherit;}
+.edit-emp-row input:focus{outline:none;border-color:var(--g);}
 </style>
 </head>
 <body>
@@ -190,13 +197,14 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <button class="btn bb2 bsm" onclick="openDayModal()">📌 ตั้งวันหยุด/ไม่เช็ค</button>
     </div>
   </div>
+  <!-- [FIX3] เปลี่ยนจาก "รายการวันนี้" เป็น "รายการล่าสุด" และเรียงล่าสุดก่อน -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;flex-wrap:wrap;gap:6px;">
-    <div class="sh">รายการวันนี้ <span class="bdg bb3" id="today-cnt">0</span></div>
+    <div class="sh">รายการล่าสุด <span class="bdg bb3" id="today-cnt">0</span><span class="recent-lbl" id="recent-mode-lbl"></span></div>
     <div id="sync-st" style="font-size:12px;"></div>
   </div>
   <div class="tw">
     <table class="tbl">
-      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>IN</th><th>9–11</th><th>13–15</th><th>15–17</th><th>OUT</th><th>สถานะ</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>วันที่</th><th>IN</th><th>9–11</th><th>13–15</th><th>15–17</th><th>OUT</th><th>สถานะ</th><th></th></tr></thead>
       <tbody id="today-body"></tbody>
     </table>
     <div id="today-empty" style="text-align:center;padding:26px;color:var(--mt);font-size:13px;">ยังไม่มีรายการ — กรอกข้อมูลด้านบน</div>
@@ -252,7 +260,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
   </div>
 </div>
 
-<!-- EMPLOYEES -->
+<!-- EMPLOYEES — [FIX2] เพิ่มปุ่มแก้ไขและ modal แก้ไขพนักงาน -->
 <div id="tab-emps" class="panel">
   <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;">
     <div class="fld" style="flex:1;max-width:220px;"><label>ชื่อพนักงานใหม่</label><input type="text" id="new-name" placeholder="เช่น สมชาย(ชาย)"></div>
@@ -261,7 +269,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
   </div>
   <div class="tw">
     <table class="tbl">
-      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th style="text-align:left;">ตำแหน่ง</th><th>บันทึกแล้ว</th><th>วันล่าสุด</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th style="text-align:left;">ตำแหน่ง</th><th>บันทึกแล้ว</th><th>วันล่าสุด</th><th>จัดการ</th></tr></thead>
       <tbody id="emp-body"></tbody>
     </table>
   </div>
@@ -271,13 +279,28 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
 <div id="tab-sheets" class="panel">
   <div class="fc" style="margin-bottom:13px;">
     <h3>🔗 ตั้งค่า Google Sheets</h3>
+
+    <!-- [FIX1] คำอธิบายชื่อไฟล์และ Sheet -->
+    <div style="background:#E1F5EE;border:1px solid #9AE6B4;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;color:#085041;line-height:1.7;">
+      <strong>📁 ข้อมูลเก็บอยู่ที่ไหน?</strong><br>
+      ข้อมูลจะถูกบันทึกใน <strong>ไฟล์ Google Sheets ที่คุณเปิด Apps Script ไว้</strong> โดยอัตโนมัติ สร้าง 2 Sheet ภายในไฟล์นั้น:<br>
+      &nbsp;&nbsp;• <strong>Attendance</strong> — ข้อมูลการเช็คเวลาทั้งหมด (คอลัมน์: ID, วันที่, ชื่อพนักงาน, เวลาIN, 9-11, 13-15, 15-17, เวลาOUT, สถานะ, บันทึกเมื่อ)<br>
+      &nbsp;&nbsp;• <strong>DayNotes</strong> — หมายเหตุวันหยุด/วันพิเศษ<br>
+      <br>
+      <strong>⚠️ ทำไมข้อมูลไม่ขึ้น?</strong> ตรวจสอบ 3 จุด:<br>
+      &nbsp;&nbsp;1. Deploy ครั้งใหม่หลังวาง Script → ต้อง <strong>New Deployment</strong> ทุกครั้งที่แก้โค้ด (ไม่ใช่ Manage Deployments)<br>
+      &nbsp;&nbsp;2. ตอน Authorize ต้องกด <strong>Allow</strong> ให้ครบ (อาจมีหน้า "Google hasn't verified this app" → กด Advanced → Go to ...)<br>
+      &nbsp;&nbsp;3. Who has access ต้องตั้งเป็น <strong>Anyone</strong> (ไม่ใช่ Anyone with Google account)<br>
+      &nbsp;&nbsp;4. Sheet จะสร้างตัวเองอัตโนมัติเมื่อมีการบันทึกครั้งแรก — ถ้ายังไม่มีข้อมูลให้ลอง <strong>🧪 ทดสอบ</strong> แล้วบันทึก 1 รายการ
+    </div>
+
     <div style="background:#FFFBEB;border:1px solid #F6E05E;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:12px;color:#744210;">
       ⚡ <strong>Script เวอร์ชันใหม่ แก้ปัญหา CORS แล้ว</strong> — ส่งข้อมูลผ่าน GET request แทน POST ทำงานได้จากไฟล์ในเครื่องโดยตรง ไม่ต้องใช้ server
     </div>
     <div class="step"><div class="stepn">1</div><div class="stept">เปิด Google Sheets → <strong>Extensions → Apps Script</strong> → <strong>ลบโค้ดเดิมออกทั้งหมด</strong></div></div>
     <div class="step"><div class="stepn">2</div><div class="stept">คัดลอก Script ด้านล่าง → วางลงไปทั้งหมด → กด <strong>Ctrl+S</strong></div></div>
-    <div class="step"><div class="stepn">3</div><div class="stept"><strong>Deploy → New Deployment</strong><br>· Type: <strong>Web app</strong> · Execute as: <strong>Me</strong> · Who has access: <strong>Anyone</strong><br>→ กด <strong>Deploy</strong> → กด <strong>Authorize access</strong> → เลือก Google Account → กด <strong>Allow</strong><br>→ Copy URL ที่ได้</div></div>
-    <div class="step"><div class="stepn">4</div><div class="stept">วาง URL ด้านล่าง → กด <strong>เชื่อมต่อ</strong> → กด <strong>🧪 ทดสอบ</strong> ให้ขึ้น ✅</div></div>
+    <div class="step"><div class="stepn">3</div><div class="stept"><strong>Deploy → New Deployment</strong><br>· Type: <strong>Web app</strong> · Execute as: <strong>Me</strong> · Who has access: <strong>Anyone</strong><br>→ กด <strong>Deploy</strong> → กด <strong>Authorize access</strong> → เลือก Google Account → กด <strong>Allow</strong><br>→ Copy URL ที่ได้ (ขึ้นต้นด้วย https://script.google.com/macros/s/...)</div></div>
+    <div class="step"><div class="stepn">4</div><div class="stept">วาง URL ด้านล่าง → กด <strong>เชื่อมต่อ</strong> → กด <strong>🧪 ทดสอบ</strong> ให้ขึ้น ✅ แล้วบันทึกข้อมูล → ไปดูใน Sheets จะมี Sheet ชื่อ <strong>Attendance</strong> ปรากฏขึ้น</div></div>
     <div class="urow">
       <input type="text" id="sh-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
       <button class="btn bp" onclick="connectSheets()">🔌 เชื่อมต่อ</button>
@@ -294,6 +317,8 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
 //  - ใช้ doGet เพียงอย่างเดียว (ไม่มี doPost)
 //  - ส่งข้อมูลผ่าน URL parameter ไม่มี preflight
 //  - ทำงานได้จากไฟล์ HTML ในเครื่องโดยตรง
+//  - ข้อมูลเก็บใน Sheet ชื่อ "Attendance" และ "DayNotes"
+//    ภายในไฟล์ Google Sheets ที่ Deploy Script นี้
 // ═══════════════════════════════════════════════════
 const SHEET = 'Attendance';
 const NOTES = 'DayNotes';
@@ -428,7 +453,7 @@ function ok(data) {
 
 </div></div><!-- .card .wrap -->
 
-<!-- MODAL -->
+<!-- MODAL: วันหยุด -->
 <div class="mbg" id="day-modal">
   <div class="modal">
     <h3>📌 ตั้งค่าวัน</h3>
@@ -444,8 +469,27 @@ function ok(data) {
       <div class="fld"><label>หมายเหตุ</label><input type="text" id="dm-note" placeholder="เช่น วันสงกรานต์ / คุณ... ลา"></div>
     </div>
     <div class="macts">
-      <button class="btn bo" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn bo" onclick="closeModal('day-modal')">ยกเลิก</button>
       <button class="btn bp" onclick="saveDayNoteModal()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- [FIX2] MODAL: แก้ไขพนักงาน -->
+<div class="mbg" id="edit-emp-modal">
+  <div class="modal" style="width:min(500px,96vw);">
+    <h3>✏️ แก้ไขข้อมูลพนักงาน</h3>
+    <div style="font-size:11px;color:var(--mt);margin-bottom:10px;">แก้ไขชื่อหรือตำแหน่งแล้วกด บันทึก</div>
+    <div style="max-height:55vh;overflow-y:auto;padding-right:4px;">
+      <!-- header -->
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:6px;padding:4px 0 6px;border-bottom:2px solid var(--bd);font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.4px;">
+        <span>ชื่อ</span><span>ตำแหน่ง</span><span></span><span></span>
+      </div>
+      <div id="edit-emp-list"></div>
+    </div>
+    <div class="macts">
+      <button class="btn bo" onclick="closeModal('edit-emp-modal')">ปิด</button>
+      <button class="btn bp" onclick="saveAllEmps()">💾 บันทึกทั้งหมด</button>
     </div>
   </div>
 </div>
@@ -466,6 +510,9 @@ let shUrl=localStorage.getItem('a_url')||'';
 let slots={s1:true,s2:true,s3:true};
 let wkOff=0;
 
+// [FIX3] เก็บรายการล่าสุดที่บันทึก (ไม่ใช่แค่วันนี้)
+let lastAddedIds=JSON.parse(sessionStorage.getItem('a_last')||'[]');
+
 const today=new Date();
 const todayStr=dstr(today);
 
@@ -473,6 +520,12 @@ function dstr(d){return d.toISOString().split('T')[0];}
 function saveEnt(){localStorage.setItem('a_ent',JSON.stringify(entries));}
 function saveEmps(){localStorage.setItem('a_emp',JSON.stringify(emps));}
 function saveDayNotesLocal(){localStorage.setItem('a_dn',JSON.stringify(dayNotes));}
+function saveLastIds(){sessionStorage.setItem('a_last',JSON.stringify(lastAddedIds));}
+
+function fmtDate(ds){
+  const d=new Date(ds+'T12:00:00');
+  return `${d.getDate()} ${MTH[d.getMonth()]} ${String(d.getFullYear()+543).slice(2)} (${DAYS[d.getDay()]})`;
+}
 
 function init(){
   const y=today.getFullYear(),m=today.getMonth();
@@ -515,6 +568,66 @@ function removeEmp(name){
   emps=emps.filter(e=>e.name!==name);entries=entries.filter(e=>e.name!==name);
   saveEmps();saveEnt();buildEmpSel();renderEmps();
 }
+
+// [FIX2] เปิด modal แก้ไขพนักงาน
+function openEditEmps(){
+  const list=document.getElementById('edit-emp-list');
+  list.innerHTML=emps.map((e,i)=>`
+    <div class="edit-emp-row" data-idx="${i}">
+      <input type="text" class="emp-name-inp" value="${e.name.replace(/"/g,'&quot;')}" placeholder="ชื่อพนักงาน">
+      <input type="text" class="emp-pos-inp" value="${e.pos||'พนักงาน'}" placeholder="ตำแหน่ง">
+      <button class="btn bo bxs" onclick="moveEmp(${i},-1)" title="ขึ้น">↑</button>
+      <button class="btn br2 bxs" onclick="removeEmpByIdx(${i})" title="ลบ">ลบ</button>
+    </div>`).join('');
+  document.getElementById('edit-emp-modal').classList.add('show');
+}
+function moveEmp(idx,dir){
+  // บันทึก input ปัจจุบันก่อน
+  const rows=document.querySelectorAll('#edit-emp-list .edit-emp-row');
+  const cur=[];
+  rows.forEach(r=>{
+    const ni=r.querySelector('.emp-name-inp').value.trim();
+    const pi=r.querySelector('.emp-pos-inp').value.trim()||'พนักงาน';
+    if(ni) cur.push({name:ni,pos:pi});
+  });
+  const ni=idx+dir;
+  if(ni<0||ni>=cur.length) return;
+  [cur[idx],cur[ni]]=[cur[ni],cur[idx]];
+  emps=cur;
+  openEditEmps();
+}
+function removeEmpByIdx(idx){
+  const rows=document.querySelectorAll('#edit-emp-list .edit-emp-row');
+  const cur=[];
+  rows.forEach(r=>{
+    const ni=r.querySelector('.emp-name-inp').value.trim();
+    const pi=r.querySelector('.emp-pos-inp').value.trim()||'พนักงาน';
+    if(ni) cur.push({name:ni,pos:pi});
+  });
+  const name=cur[idx]?.name;
+  if(!name) return;
+  if(!confirm(`ลบ "${name}" และข้อมูลการเช็คเวลาทั้งหมดของพนักงานคนนี้?`)) return;
+  cur.splice(idx,1);
+  emps=cur;
+  entries=entries.filter(e=>e.name!==name);
+  saveEnt();
+  openEditEmps();
+}
+function saveAllEmps(){
+  const rows=document.querySelectorAll('#edit-emp-list .edit-emp-row');
+  const newEmps=[];
+  rows.forEach(r=>{
+    const name=r.querySelector('.emp-name-inp').value.trim();
+    const pos=r.querySelector('.emp-pos-inp').value.trim()||'พนักงาน';
+    if(name) newEmps.push({name,pos});
+  });
+  if(newEmps.length===0){toast('ต้องมีพนักงานอย่างน้อย 1 คน','r');return;}
+  emps=newEmps;
+  saveEmps();buildEmpSel();renderEmps();
+  closeModal('edit-emp-modal');
+  toast('บันทึกข้อมูลพนักงานแล้ว ✓');
+}
+
 function renderEmps(){
   document.getElementById('emp-body').innerHTML=emps.map((e,i)=>{
     const cnt=entries.filter(x=>x.name===e.name).length;
@@ -523,7 +636,10 @@ function renderEmps(){
       <td style="text-align:left;color:var(--mt);">${e.pos}</td>
       <td><span class="bdg bb3">${cnt}</span></td>
       <td style="color:var(--mt);font-size:11px;">${last?last.date:'-'}</td>
-      <td><button class="btn br2 bxs" onclick="removeEmp('${e.name.replace(/'/g,"\\'")}')">ลบ</button></td></tr>`;
+      <td style="white-space:nowrap;">
+        <button class="btn bb2 bxs" onclick="openEditEmps()" style="margin-right:4px;">✏️ แก้ไข</button>
+        <button class="btn br2 bxs" onclick="removeEmp('${e.name.replace(/'/g,"\\'")}')">ลบ</button>
+      </td></tr>`;
   }).join('');
 }
 
@@ -563,27 +679,59 @@ function addEntry(){
     slot2:notime?'-':(slots.s2?'อยู่':'ไม่'),
     slot3:notime?'-':(slots.s3?'อยู่':'ไม่'),
   };
+  // ลบรายการซ้ำชื่อ+วันที่เดิม แล้วเก็บ id ใหม่
+  const oldEntry=entries.find(e=>e.name===name&&e.date===date);
+  if(oldEntry){
+    lastAddedIds=lastAddedIds.filter(x=>x!==oldEntry.id);
+  }
   entries=entries.filter(e=>!(e.name===name&&e.date===date));
   entries.push(entry);saveEnt();
+
+  // [FIX3] เพิ่ม id ใหม่เข้า lastAddedIds (ล่าสุดอยู่หน้าสุด) ไม่เกิน 50 รายการ
+  lastAddedIds=[id,...lastAddedIds.slice(0,49)];
+  saveLastIds();
+
   renderToday();renderAlerts();clearForm();
   toast('บันทึกแล้ว ✓');
   if(shUrl) syncEntry(entry);
 }
+
 function delEntry(id){
   const e=entries.find(x=>x.id===id);
   entries=entries.filter(x=>x.id!==id);saveEnt();
+  // ลบออกจาก lastAddedIds ด้วย
+  lastAddedIds=lastAddedIds.filter(x=>x!==id);saveLastIds();
   renderToday();renderAlerts();
   if(shUrl&&e) callGS({action:'delete',id:e.id});
 }
 
+// [FIX3] renderToday: แสดงรายการที่เพิ่งบันทึก (lastAddedIds) เรียงล่าสุดก่อน
+// ถ้ายังไม่เคยบันทึกในรอบ session นี้ ให้ fallback แสดงรายการวันนี้
 function renderToday(){
-  const te=entries.filter(e=>e.date===todayStr);
-  document.getElementById('today-cnt').textContent=te.length;
-  document.getElementById('today-empty').style.display=te.length?'none':'';
   const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาด',leave:'🌴 พักร้อน',sick:'🤒 ป่วย'};
   const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3'};
+
+  let te;
+  let modeLabel='';
+  if(lastAddedIds.length>0){
+    // กรองรายการตาม lastAddedIds เรียงตาม order ใน lastAddedIds (ล่าสุดอยู่หน้า)
+    te=lastAddedIds.map(id=>entries.find(e=>e.id===id)).filter(Boolean);
+    modeLabel=`(${te.length} รายการล่าสุดที่บันทึกในรอบนี้)`;
+  } else {
+    // Fallback: วันนี้
+    te=[...entries.filter(e=>e.date===todayStr)].sort((a,b)=>b.id.localeCompare(a.id));
+    modeLabel=te.length>0?'(วันนี้)':'';
+  }
+
+  document.getElementById('today-cnt').textContent=te.length;
+  document.getElementById('recent-mode-lbl').textContent=modeLabel;
+  document.getElementById('today-empty').style.display=te.length?'none':'';
+
+  // [FIX3] เพิ่มคอลัมน์ "วันที่" เข้าไปในตาราง
   document.getElementById('today-body').innerHTML=te.map((e,i)=>`<tr>
-    <td class="tdn">${i+1}</td><td class="tdl">${e.name}</td>
+    <td class="tdn">${i+1}</td>
+    <td class="tdl">${e.name}</td>
+    <td style="font-size:11px;color:var(--mt);">${fmtDate(e.date)}</td>
     <td class="tdi">${e.timeIn||'—'}</td>
     <td class="${e.slot1==='อยู่'?'tdok':'tdno'}">${e.slot1||'—'}</td>
     <td class="${e.slot2==='อยู่'?'tdok':'tdno'}">${e.slot2||'—'}</td>
@@ -625,7 +773,6 @@ function renderWeekly(){
   const s=days[0],e=days[5];
   document.getElementById('wk-lbl').textContent=`${s.getDate()} ${MTH[s.getMonth()]} – ${e.getDate()} ${MTH[e.getMonth()]} ${e.getFullYear()+543}`;
 
-  // day note inputs
   document.getElementById('dn-row').innerHTML=days.map(d=>{
     const ds2=dstr(d),dn=dayNotes[ds2]||{};
     return `<div class="dnc">
@@ -641,19 +788,17 @@ function renderWeekly(){
       </div></div>`;
   }).join('');
 
-  // header
   const monLbl=MFULL[s.getMonth()];
   let head=`<tr><th class="wh1" rowspan="2">${monLbl}</th>
     <th style="text-align:left;background:#f8fafc;font-size:10px;font-weight:700;color:var(--mt);" rowspan="2">ชื่อ</th>`;
   days.forEach(d=>{
-    head+=`<th colspan="5" class="${WCL[d.getDay()]}">${DAYS[d.getDay()]}/มี.ค. ${String(d.getDate()).padStart(2,'0')}</th>`;
+    head+=`<th colspan="5" class="${WCL[d.getDay()]}">${DAYS[d.getDay()]} ${String(d.getDate()).padStart(2,'0')}</th>`;
   });
   head+='</tr><tr>';
   days.forEach(()=>{head+='<th class="whsub">IN</th><th class="whsub">9-11</th><th class="whsub">13-15</th><th class="whsub">15-17</th><th class="whsub">OUT</th>';});
   head+='</tr>';
   document.getElementById('wk-head').innerHTML=head;
 
-  // body
   document.getElementById('wk-body').innerHTML=emps.map((emp,idx)=>{
     let row=`<tr><td class="wnum">${idx+1}</td><td class="wname">${emp.name}</td>`;
     days.forEach(d=>{
@@ -742,7 +887,7 @@ function openDayModal(){
   document.getElementById('dm-note').value='';
   document.getElementById('day-modal').classList.add('show');
 }
-function closeModal(){document.getElementById('day-modal').classList.remove('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
 function saveDayNoteModal(){
   const ds2=document.getElementById('dm-date').value;
   const type=document.getElementById('dm-type').value;
@@ -750,11 +895,12 @@ function saveDayNoteModal(){
   if(!type){delete dayNotes[ds2];}else{dayNotes[ds2]={type,note};}
   saveDayNotesLocal();
   if(shUrl) callGS({action:'saveNote',date:ds2,note:note||'',type:type||''});
-  closeModal();renderWeekly();toast('บันทึกแล้ว ✓');
+  closeModal('day-modal');renderWeekly();toast('บันทึกแล้ว ✓');
 }
-document.getElementById('day-modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+document.getElementById('day-modal').addEventListener('click',function(e){if(e.target===this)closeModal('day-modal');});
+document.getElementById('edit-emp-modal').addEventListener('click',function(e){if(e.target===this)closeModal('edit-emp-modal');});
 
-// GOOGLE SHEETS — GET-only (CORS-free)
+// GOOGLE SHEETS
 function callGS(params){
   if(!shUrl) return Promise.resolve({});
   const qs=Object.entries(params)
@@ -782,7 +928,7 @@ async function testConn(){
   try{
     const d=await callGS({action:'ping'});
     st.innerHTML=d.pong
-      ?'<span style="color:var(--g);">✅ เชื่อมต่อสำเร็จ! พร้อมใช้งาน — ลองบันทึกข้อมูลแล้วไปดูใน Sheets ได้เลย</span>'
+      ?'<span style="color:var(--g);">✅ เชื่อมต่อสำเร็จ! พร้อมใช้งาน — ลองบันทึกข้อมูลแล้วไปดูใน Sheets ได้เลย (Sheet ชื่อ <strong>Attendance</strong>)</span>'
       :'<span style="color:var(--o);">⚠️ ตอบกลับแล้วแต่ผิดปกติ ลอง Deploy ใหม่อีกครั้ง</span>';
   }catch(e){
     st.innerHTML=`<span style="color:var(--r);">❌ เชื่อมต่อไม่ได้: ${e.message}<br>ตรวจสอบว่า Who has access = <strong>Anyone</strong> และกด Allow ตอน Authorize</span>`;
