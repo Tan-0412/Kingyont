@@ -450,9 +450,12 @@ function ok(data) {
     </div>
     <div class="dvd"></div>
     <h3>☁️ อัปโหลดข้อมูลในเครื่องขึ้น Google Sheets</h3>
-    <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">ใช้เมื่อมีข้อมูลเก่าในเครื่องที่ยังไม่เคย Sync ขึ้น Sheets — จะส่งข้อมูลทุกรายการขึ้นไป</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn bp" onclick="syncAll()" style="background:var(--p);">⬆️ Sync ข้อมูลทั้งหมดขึ้น Sheets (<span id="sync-all-cnt">0</span> รายการ)</button>
+    <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">
+      ใช้ครั้งแรกเพื่อ Sync ข้อมูลเก่าขึ้น Sheets — ระบบจะตรวจสอบก่อนว่ารายการไหนยังไม่มีใน Sheets แล้วส่งขึ้นเฉพาะรายการที่ขาด <strong>ไม่ Sync ซ้ำ</strong> และจะล้างข้อมูลในเครื่องให้อัตโนมัติเมื่อ Sync สำเร็จ
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn bp" onclick="syncAll()" style="background:var(--p);">⬆️ Sync ขึ้น Sheets (<span id="sync-all-cnt">0</span> รายการในเครื่อง)</button>
+      <button class="btn bo bsm" onclick="clearLocalData()" style="border-color:var(--r);color:var(--r);">🗑 ล้างข้อมูลในเครื่อง</button>
     </div>
     <div id="load-st" style="font-size:12px;margin-top:8px;"></div>
   </div>
@@ -961,26 +964,69 @@ function syncEntry(entry){
   });
 }
 
-// [FIX] Sync ข้อมูลทั้งหมดจาก localStorage ขึ้น Sheets ทีละรายการ
+// Sync ข้อมูลทั้งหมดขึ้น Sheets — ดึงของ Sheets มาเทียบก่อน ส่งเฉพาะที่ยังไม่มี
 async function syncAll(){
   if(!shUrl){alert('กรุณาเชื่อมต่อ Google Sheets ก่อน');return;}
   const st=document.getElementById('load-st');
-  if(!confirm(`จะ Sync ข้อมูลทั้งหมด ${entries.length} รายการ ขึ้น Google Sheets ใช่ไหม?\n(รายการที่มีอยู่แล้วใน Sheets จะถูกเขียนทับด้วยข้อมูลในเครื่อง)`))return;
-  st.textContent=`กำลัง Sync 0/${entries.length}...`;
+  st.textContent='กำลังตรวจสอบข้อมูลใน Sheets...';
+
+  // ดึงข้อมูลที่มีอยู่ใน Sheets มาก่อน เพื่อเทียบ
+  const existing=await callGS({action:'getAll'});
+  const sheetKeys=new Set();
+  if(existing.rows){
+    existing.rows.forEach(r=>{
+      const name=String(r['ชื่อพนักงาน']||'');
+      const date=String(r['วันที่']||'').substring(0,10);
+      if(name&&date) sheetKeys.add(`${date}|${name}`);
+    });
+  }
+
+  // กรองเฉพาะรายการที่ยังไม่มีใน Sheets
+  const toSync=entries.filter(e=>!sheetKeys.has(`${e.date}|${e.name}`));
+
+  if(toSync.length===0){
+    st.innerHTML=`<span style="color:var(--g);">✅ ข้อมูลทั้งหมด ${entries.length} รายการอยู่ใน Sheets แล้ว ไม่มีรายการใหม่ที่ต้อง Sync</span>`;
+    return;
+  }
+
+  if(!confirm(`พบ ${toSync.length} รายการที่ยังไม่อยู่ใน Sheets (มีอยู่แล้ว ${sheetKeys.size} รายการ)\nต้องการ Sync ${toSync.length} รายการนี้ขึ้นไปใช่ไหม?`))return;
+
   let ok=0,fail=0;
-  for(let i=0;i<entries.length;i++){
-    const e=entries[i];
-    st.textContent=`กำลัง Sync ${i+1}/${entries.length}... (${e.name} ${e.date})`;
+  for(let i=0;i<toSync.length;i++){
+    const e=toSync[i];
+    st.textContent=`กำลัง Sync ${i+1}/${toSync.length}... (${e.name} ${e.date})`;
     const d=await callGS({action:'save',id:e.id,name:e.name,date:e.date,
       timeIn:e.timeIn||'',timeOut:e.timeOut||'',status:e.status,
       slot1:e.slot1||'',slot2:e.slot2||'',slot3:e.slot3||''});
     if(d.success) ok++; else fail++;
-    // หน่วงเล็กน้อยไม่ให้ request ถี่เกินไป
     await new Promise(r=>setTimeout(r,300));
   }
-  st.innerHTML=fail===0
-    ?`<span style="color:var(--g);">✅ Sync สำเร็จทั้งหมด ${ok} รายการ — ไปดูใน Google Sheets ได้เลย (Sheet ชื่อ <strong>Attendance</strong>)</span>`
-    :`<span style="color:var(--o);">⚠️ Sync สำเร็จ ${ok} รายการ / ล้มเหลว ${fail} รายการ</span>`;
+
+  if(fail===0){
+    // Sync สำเร็จทั้งหมด → เพิ่มเข้า lastAddedIds และล้าง localStorage
+    const syncedIds=toSync.map(e=>e.id);
+    lastAddedIds=[...syncedIds,...lastAddedIds].slice(0,50);
+    saveLastIds();
+    renderToday();
+
+    // ล้าง localStorage เฉพาะส่วนข้อมูล entries (คง emps, dayNotes, url ไว้)
+    entries=[];saveEnt();updateSyncCnt();
+
+    st.innerHTML=`<span style="color:var(--g);">✅ Sync สำเร็จ ${ok} รายการ — ข้อมูลในเครื่องถูกล้างแล้ว (Sheets คือแหล่งข้อมูลหลัก) กด <strong>🔄 ดึงข้อมูลทั้งหมด</strong> เพื่อโหลดกลับมาได้ตลอด</span>`;
+    toast('Sync และล้างข้อมูลในเครื่องเรียบร้อย ✓');
+  } else {
+    st.innerHTML=`<span style="color:var(--o);">⚠️ Sync สำเร็จ ${ok} รายการ / ล้มเหลว ${fail} รายการ — ข้อมูลในเครื่องยังไม่ถูกล้าง กรุณาลองใหม่</span>`;
+  }
+}
+
+// ล้างข้อมูลในเครื่องทั้งหมด (entries เท่านั้น)
+function clearLocalData(){
+  if(!confirm(`⚠️ ล้างข้อมูลการเช็คเวลาทั้งหมดในเครื่องนี้ (${entries.length} รายการ)\n\nข้อมูลใน Google Sheets จะไม่ได้รับผลกระทบ\nสามารถกด "🔄 ดึงข้อมูลทั้งหมด" เพื่อโหลดกลับมาได้\n\nยืนยันหรือไม่?`))return;
+  entries=[];saveEnt();
+  lastAddedIds=[];saveLastIds();
+  updateSyncCnt();renderToday();renderAlerts();
+  document.getElementById('load-st').innerHTML='<span style="color:var(--g);">🗑 ล้างข้อมูลในเครื่องแล้ว — กด 🔄 ดึงข้อมูลทั้งหมด เพื่อโหลดจาก Sheets</span>';
+  toast('ล้างข้อมูลในเครื่องแล้ว');
 }
 
 async function loadAll(){
