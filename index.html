@@ -927,28 +927,15 @@ function renderWeekly(){
   }).join('');
 }
 
-// บันทึกสาเหตุจาก dropdown ในตารางรายสัปดาห์ทันที
 function noTimeSel(en, field){
   if(field==='in' && en.timeIn){
     return en.timeIn + (en.status==='late' ? '<span class="wlate">สาย</span>' : '');
   }
   if(field==='out' && en.timeOut) return en.timeOut;
-  const val = field==='in' ? (en.noTimeIn||'') : (en.noTimeOut||'');
-  const nm = en.name.replace(/'/g,"&#39;"), dt = en.date;
-  return '<select class="no-time-sel" onchange="setNoTimeMark(\'' + nm + '\',\'' + dt + '\',\'' + field + '\',this.value)" title="ไม่มีข้อมูลสแกน">'
-    + '<option value=""' + (val===''?' selected':'') + '>—</option>'
-    + '<option value="ลืม"' + (val==='ลืม'?' selected':'') + '>ลืม</option>'
-    + '<option value="ยกเว้น"' + (val==='ยกเว้น'?' selected':'') + '>ยกเว้น</option>'
-    + '</select>';
+  return '<span style="color:var(--mt);font-size:11px;">ไม่</span>';
 }
 
-function setNoTimeMark(name, date, field, value){
-  const idx = entries.findIndex(e => e.name===name && e.date===date);
-  if(idx < 0) return;
-  if(field === 'in')  entries[idx].noTimeIn  = value;
-  if(field === 'out') entries[idx].noTimeOut = value;
-  saveEnt();
-}
+
 
 function quickEntry(name, date, status){
   if(!status) return;
