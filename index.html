@@ -313,6 +313,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <input type="text" id="sh-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
       <button class="btn bp" onclick="connectSheets()">🔌 เชื่อมต่อ</button>
       <button class="btn bb2" id="sh-test" onclick="testConn()" style="display:none;">🧪 ทดสอบ</button>
+      <button class="btn bo" id="sh-debug" onclick="debugSheets()" style="display:none;" title="ดูข้อมูลดิบจาก Sheets เพื่อ debug">🔍 Debug</button>
     </div>
     <div class="cst" id="sh-st"></div>
     <div class="dvd"></div>
@@ -423,7 +424,15 @@ function getRows() {
   const hdrs = data[0].map(String);
   return data.slice(1).map(r => {
     const o = {};
-    hdrs.forEach((h, i) => { o[h] = r[i]; });
+    hdrs.forEach((h, i) => {
+      const val = r[i];
+      // แปลง Date object เป็น YYYY-MM-DD string
+      if (val instanceof Date) {
+        o[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd');
+      } else {
+        o[h] = val === null || val === undefined ? '' : String(val);
+      }
+    });
     return o;
   });
 }
@@ -436,7 +445,14 @@ function getNotes() {
   const hdrs = data[0].map(String);
   return data.slice(1).map(r => {
     const o = {};
-    hdrs.forEach((h, i) => { o[h] = r[i]; });
+    hdrs.forEach((h, i) => {
+      const val = r[i];
+      if (val instanceof Date) {
+        o[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd');
+      } else {
+        o[h] = val === null || val === undefined ? '' : String(val);
+      }
+    });
     return o;
   });
 }
@@ -562,6 +578,7 @@ function init(){
   if(shUrl){
     document.getElementById('sh-url').value=shUrl;
     document.getElementById('sh-test').style.display='';
+    document.getElementById('sh-debug').style.display='';
     document.getElementById('conn-pill').style.display='';
   }
 }
@@ -790,8 +807,8 @@ async function fetchAndRenderWeekly(){
     if(st) st.textContent='⏳ กำลังดึงจาก Sheets...';
     document.getElementById('wk-body').innerHTML='<tr><td colspan="32" style="text-align:center;padding:16px;color:#718096;font-size:12px;">⏳ กำลังดึงข้อมูลจาก Google Sheets...</td></tr>';
     await refreshFromSheets();
-    if(st) st.textContent='✅ อัปเดตแล้ว';
-    setTimeout(()=>{if(st)st.textContent='';},3000);
+    if(st) st.textContent=`✅ โหลดแล้ว (${entries.length} รายการ)`;
+    setTimeout(()=>{if(st)st.textContent='';},4000);
   }
   renderWeekly();
 }
@@ -1005,6 +1022,7 @@ function connectSheets(){
   shUrl=url;localStorage.setItem('a_url',url);
   document.getElementById('sh-st').innerHTML='<span style="color:var(--g);">✅ บันทึก URL แล้ว — กด 🧪 ทดสอบ เพื่อยืนยัน</span>';
   document.getElementById('sh-test').style.display='';
+  document.getElementById('sh-debug').style.display='';
   document.getElementById('conn-pill').style.display='';
 }
 
@@ -1205,31 +1223,134 @@ function updateSyncCnt(){
   if(el) el.textContent=entries.length;
 }
 
-// ดึงข้อมูลจาก Sheets แบบ upsert (เขียนทับถ้ามีอยู่แล้ว)
+// แปลงวันที่จาก Sheets ให้เป็น YYYY-MM-DD เสมอ
+// รองรับ: "2026-03-23", "23/03/2026", Date object, serial number (Excel)
+function parseSheetDate(raw){
+  if(!raw && raw!==0) return '';
+  const s = String(raw).trim();
+  // รูปแบบ YYYY-MM-DD หรือ YYYY/MM/DD
+  if(/^\d{4}[-\/]\d{2}[-\/]\d{2}/.test(s)) return s.substring(0,10).replace(/\//g,'-');
+  // รูปแบบ DD/MM/YYYY หรือ DD-MM-YYYY
+  if(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)){
+    const p=s.split(/[\/\-]/);
+    return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  }
+  // รูปแบบ MM/DD/YYYY (US format จาก Google Sheets)
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+    const p=s.split('/');
+    // ถ้า p[0] > 12 แสดงว่าเป็น DD/MM/YYYY
+    if(parseInt(p[0])>12){
+      return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+    }
+    return `${p[2]}-${p[0].padStart(2,'0')}-${p[1].padStart(2,'0')}`;
+  }
+  // Google Sheets Date serial (วันที่เป็นตัวเลข เช่น 46374)
+  if(/^\d+$/.test(s)){
+    const n=parseInt(s);
+    if(n>40000&&n<60000){ // range ของวันที่ปี 2009-2063
+      const d=new Date((n-25569)*86400*1000);
+      return dstr(d);
+    }
+  }
+  // ลอง parse ด้วย Date object โดยตรง
+  const d=new Date(s);
+  if(!isNaN(d.getTime())) return dstr(d);
+  return s.substring(0,10);
+}
+
+// หา key จาก object โดยไม่สนใจ whitespace และ case
+function getField(obj, ...keys){
+  for(const k of keys){
+    if(k in obj && obj[k]!==null && obj[k]!==undefined) return String(obj[k]);
+    // ลองหา key ที่ trim แล้วตรงกัน
+    const found=Object.keys(obj).find(ok=>ok.trim()===k.trim());
+    if(found) return String(obj[found]||'');
+  }
+  return '';
+}
+
+// ดึงข้อมูลจาก Sheets แบบ upsert — robust รองรับทุกรูปแบบ
 async function refreshFromSheets(){
   try{
-    const[d,dn]=await Promise.all([callGS({action:'getAll'}),callGS({action:'getNotes'})]);
-    if(d.rows){
+    const[d,dn]=await Promise.all([
+      callGS({action:'getAll'}),
+      callGS({action:'getNotes'})
+    ]);
+
+    if(d.rows && d.rows.length>0){
+      // log ดูรูปแบบจริงของ row แรก เพื่อ debug
+      console.log('[Sheets] sample row:', JSON.stringify(d.rows[0]));
+      console.log('[Sheets] total rows:', d.rows.length);
+
+      let added=0, updated=0;
       d.rows.forEach(r=>{
-        const name=String(r['ชื่อพนักงาน']||''),date=String(r['วันที่']||'').substring(0,10);
-        if(!name||!date)return;
+        // รองรับชื่อ column หลายรูปแบบ
+        const name = getField(r,'ชื่อพนักงาน','name','ชื่อ','Name');
+        const rawDate = getField(r,'วันที่','date','Date','วันที่ทำงาน');
+        const date = parseSheetDate(rawDate);
+
+        if(!name||!date||date.length<8) return;
+
+        const entry={
+          id: getField(r,'ID','id') || `${date}_${name}`,
+          name, date,
+          timeIn:  getField(r,'เวลาIN','เวลาเข้า','IN','timeIn','in'),
+          timeOut: getField(r,'เวลาOUT','เวลาออก','OUT','timeOut','out'),
+          status:  getField(r,'สถานะ','status','Status') || 'normal',
+          slot1:   getField(r,'9-11','slot1','9-11น'),
+          slot2:   getField(r,'13-15','slot2','13-15น'),
+          slot3:   getField(r,'15-17','slot3','15-17น'),
+        };
+
         const idx=entries.findIndex(e=>e.name===name&&e.date===date);
-        const entry={id:String(r['ID']||`${date}_${name}`),name,date,
-          timeIn:String(r['เวลาIN']||''),timeOut:String(r['เวลาOUT']||''),
-          status:String(r['สถานะ']||'normal'),
-          slot1:String(r['9-11']||''),slot2:String(r['13-15']||''),slot3:String(r['15-17']||'')};
-        if(idx>=0)entries[idx]=entry; else entries.push(entry);
+        if(idx>=0){ entries[idx]=entry; updated++; }
+        else{ entries.push(entry); added++; }
       });
+
+      console.log(`[Sheets] added=${added}, updated=${updated}, total entries=${entries.length}`);
       saveEnt();
+    } else {
+      console.warn('[Sheets] getAll returned no rows:', d);
     }
-    if(dn.notes){
+
+    if(dn.notes && dn.notes.length>0){
       dn.notes.forEach(n=>{
-        const date=String(n['วันที่']||'').substring(0,10);
-        if(date)dayNotes[date]={type:String(n['ประเภท']||''),note:String(n['หมายเหตุ']||'')};
+        const rawDate = getField(n,'วันที่','date','Date');
+        const date = parseSheetDate(rawDate);
+        if(date) dayNotes[date]={
+          type: getField(n,'ประเภท','type','Type'),
+          note: getField(n,'หมายเหตุ','note','Note')
+        };
       });
       saveDayNotesLocal();
     }
-  }catch(err){console.warn('refreshFromSheets:',err);}
+  }catch(err){
+    console.error('[Sheets] refreshFromSheets error:',err);
+  }
+}
+
+// Debug: ดูข้อมูลดิบจาก Sheets
+async function debugSheets(){
+  if(!shUrl){alert('กรุณาเชื่อมต่อ Sheets ก่อน');return;}
+  const st=document.getElementById('sh-st');
+  st.textContent='กำลังดึงข้อมูล debug...';
+  try{
+    const d=await callGS({action:'getAll'});
+    if(!d.rows||d.rows.length===0){
+      st.innerHTML='<span style="color:var(--r);">❌ Sheets ส่งกลับ rows ว่าง — ตรวจสอบว่า Sheet ชื่อ <strong>Attendance</strong> มีข้อมูลไหม</span>';
+      return;
+    }
+    const sample=d.rows[0];
+    const keys=Object.keys(sample);
+    const msg=`✅ พบ ${d.rows.length} แถว\nชื่อ column: ${keys.join(' | ')}\nตัวอย่างแถวแรก:\n${keys.map(k=>`  ${k}: "${sample[k]}"`).join('\n')}`;
+    st.innerHTML=`<pre style="background:#f8fafc;padding:10px;border-radius:8px;font-size:11px;overflow-x:auto;border:1px solid var(--bd);color:var(--tx);">${msg}</pre>`;
+    // parse วันที่ของแถวแรกด้วย
+    const rawDate=getField(sample,'วันที่','date','Date','วันที่ทำงาน');
+    const parsed=parseSheetDate(rawDate);
+    st.innerHTML+=`<div style="font-size:12px;margin-top:6px;color:var(--g);">📅 วันที่ดิบ: "${rawDate}" → parse ได้: "${parsed}"</div>`;
+  }catch(e){
+    st.innerHTML=`<span style="color:var(--r);">❌ ${e.message}</span>`;
+  }
 }
 
 // TABS — ดึงจาก Sheets อัตโนมัติเมื่อเปิด weekly/monthly
