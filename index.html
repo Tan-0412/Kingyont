@@ -567,7 +567,8 @@ let lastAddedIds=JSON.parse(sessionStorage.getItem('a_last')||'[]');
 const today=new Date();
 const todayStr=dstr(today);
 
-function dstr(d){return d.toISOString().split('T')[0];}
+function dstr(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+
 function saveEnt(){localStorage.setItem('a_ent',JSON.stringify(entries));}
 function saveEmps(){localStorage.setItem('a_emp',JSON.stringify(emps));}
 function saveDayNotesLocal(){localStorage.setItem('a_dn',JSON.stringify(dayNotes));}
