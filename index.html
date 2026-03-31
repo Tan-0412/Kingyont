@@ -74,8 +74,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .whol{background:#EDE9FE;color:#4c1d95;font-size:11px;font-style:italic;}
 .wnc{background:#E2E8F0;color:#4a5568;font-size:11px;font-style:italic;}
 .wlate{color:#EF9F27;font-size:10px;font-weight:700;display:block;}
-.no-time-sel{font-size:10px;border:1px solid #cbd5e1;border-radius:4px;padding:1px 2px;background:#fffbeb;color:#92400e;cursor:pointer;width:62px;}
-.no-time-sel option{font-size:11px;}
 /* stats */
 .sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;}
 .sc{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:13px;text-align:center;}
@@ -904,9 +902,9 @@ function renderWeekly(){
         const sc1=en.slot1==='ไม่'?'wno':'wp';
         const sc2=en.slot2==='ไม่'?'wno':'wp';
         const sc3=en.slot3==='ไม่'?'wno':'wp';
-        row+=`<td class="win">${noTimeSel(en,'in')}</td>
+        row+=`<td class="win">${en.timeIn||'—'}${en.status==='late'?'<span class="wlate">สาย</span>':''}</td>
           <td class="${sc1}">${en.slot1||'—'}</td><td class="${sc2}">${en.slot2||'—'}</td>
-          <td class="${sc3}">${en.slot3||'—'}</td><td class="wout">${noTimeSel(en,'out')}</td>`;
+          <td class="${sc3}">${en.slot3||'—'}</td><td class="wout">${en.timeOut||'—'}</td>`;
       }
     });
     return row+'</tr>';
@@ -914,28 +912,6 @@ function renderWeekly(){
 }
 
 // บันทึกสาเหตุจาก dropdown ในตารางรายสัปดาห์ทันที
-function noTimeSel(en, field){
-  if(field==='in' && en.timeIn){
-    return en.timeIn + (en.status==='late' ? '<span class="wlate">สาย</span>' : '');
-  }
-  if(field==='out' && en.timeOut) return en.timeOut;
-  const val = field==='in' ? (en.noTimeIn||'') : (en.noTimeOut||'');
-  const nm = en.name.replace(/'/g,"&#39;"), dt = en.date;
-  return '<select class="no-time-sel" onchange="setNoTimeMark(\'' + nm + '\',\'' + dt + '\',\'' + field + '\',this.value)" title="ไม่มีข้อมูลสแกน">'
-    + '<option value=""' + (val===''?' selected':'') + '>—</option>'
-    + '<option value="ลืม"' + (val==='ลืม'?' selected':'') + '>ลืม</option>'
-    + '<option value="ยกเว้น"' + (val==='ยกเว้น'?' selected':'') + '>ยกเว้น</option>'
-    + '</select>';
-}
-
-function setNoTimeMark(name, date, field, value){
-  const idx = entries.findIndex(e => e.name===name && e.date===date);
-  if(idx < 0) return;
-  if(field === 'in')  entries[idx].noTimeIn  = value;
-  if(field === 'out') entries[idx].noTimeOut = value;
-  saveEnt();
-}
-
 function quickEntry(name, date, status){
   if(!status) return;
   const id=`${date}_${name}_quick_${Date.now()}`;
