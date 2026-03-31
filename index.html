@@ -222,6 +222,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
     <button class="btn bo bsm" onclick="wkGo(1)">ถัดไป →</button>
     <span style="font-size:12px;color:var(--g);cursor:pointer;" onclick="wkOff=0;fetchAndRenderWeekly()">↩ สัปดาห์นี้</span>
     <button class="btn bo bsm" onclick="fetchAndRenderWeekly()" title="โหลดข้อมูลใหม่จาก Sheets">🔄 รีเฟรช</button>
+    <button class="btn bo bsm" id="wk-debug-btn" onclick="showWeeklyDebug()" style="display:none;font-size:11px;color:#718096;">🔍 Debug Sheets</button>
     <span id="wk-fetch-st" style="font-size:11px;color:var(--mt);"></span>
     <div class="lgd">
       <div class="lgdi"><div class="lgdd" style="background:#FAEEDA;"></div>จ</div>
@@ -235,6 +236,8 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <div class="lgdi"><div class="lgdd" style="background:#fffbf0;border:1px solid #e2d9c5;"></div>ไม่มีข้อมูล</div>
     </div>
   </div>
+  <!-- Debug panel — แสดงเมื่อกด Debug -->
+  <div id="wk-debug-panel" style="display:none;background:#1a202c;color:#68d391;padding:12px 14px;border-radius:10px;font-size:11px;font-family:monospace;margin-bottom:12px;overflow-x:auto;white-space:pre;line-height:1.6;"></div>
   <div class="dnbar">
     <div class="dnlbl">📌 หมายเหตุรายวัน — วันหยุดบริษัท / ผู้ตรวจลาหยุด</div>
     <div class="dnrow" id="dn-row"></div>
@@ -803,7 +806,9 @@ function wkGo(dir){wkOff+=dir;fetchAndRenderWeekly();}
 
 async function fetchAndRenderWeekly(){
   const st=document.getElementById('wk-fetch-st');
+  const dbBtn=document.getElementById('wk-debug-btn');
   if(shUrl){
+    if(dbBtn) dbBtn.style.display='';
     if(st) st.textContent='⏳ กำลังดึงจาก Sheets...';
     document.getElementById('wk-body').innerHTML='<tr><td colspan="32" style="text-align:center;padding:16px;color:#718096;font-size:12px;">⏳ กำลังดึงข้อมูลจาก Google Sheets...</td></tr>';
     await refreshFromSheets();
@@ -1030,10 +1035,39 @@ async function testConn(){
   const st=document.getElementById('sh-st');
   st.textContent='กำลังทดสอบ...';
   try{
+    // ทดสอบ ping ก่อน
     const d=await callGS({action:'ping'});
-    st.innerHTML=d.pong
-      ?'<span style="color:var(--g);">✅ เชื่อมต่อสำเร็จ! พร้อมใช้งาน — ลองบันทึกข้อมูลแล้วไปดูใน Sheets ได้เลย (Sheet ชื่อ <strong>Attendance</strong>)</span>'
-      :'<span style="color:var(--o);">⚠️ ตอบกลับแล้วแต่ผิดปกติ ลอง Deploy ใหม่อีกครั้ง</span>';
+    if(!d.pong){
+      st.innerHTML='<span style="color:var(--o);">⚠️ ตอบกลับแต่ผิดปกติ — ลอง Deploy ใหม่</span>';
+      return;
+    }
+    // ทดสอบดึงข้อมูลจริงเพื่อตรวจ version
+    st.textContent='✅ เชื่อมต่อได้ กำลังตรวจสอบ Script version...';
+    const rows=await callGS({action:'getAll'});
+    if(!rows.rows){
+      st.innerHTML='<span style="color:var(--r);">❌ getAll ไม่ตอบกลับ rows — Script อาจไม่ใช่เวอร์ชันล่าสุด</span>';
+      return;
+    }
+    if(rows.rows.length===0){
+      st.innerHTML='<span style="color:var(--g);">✅ เชื่อมต่อสำเร็จ — ยังไม่มีข้อมูลใน Sheet (บันทึกข้อมูลแรกได้เลย)</span>';
+      return;
+    }
+    // ตรวจว่า date มาเป็น string YYYY-MM-DD หรือเปล่า (ถ้าไม่ใช่ = Script เก่า)
+    const sample=rows.rows[0];
+    const rawDate=sample['วันที่']||sample['date']||'';
+    const isCorrectFormat=/^\d{4}-\d{2}-\d{2}$/.test(String(rawDate).trim());
+    if(!isCorrectFormat){
+      st.innerHTML=`<span style="color:var(--r);">
+        ⚠️ <strong>Script เวอร์ชันเก่า!</strong> วันที่ที่ได้รับ: "${rawDate}" (ควรเป็น 2026-03-23)<br>
+        👉 ต้องวาง Script ใหม่ใน Apps Script แล้ว <strong>Deploy → New Deployment</strong> อีกครั้ง<br>
+        <small style="color:#718096;">URL ใหม่จะต่างจากเดิม ต้องอัปเดตด้วย</small>
+      </span>`;
+      return;
+    }
+    st.innerHTML=`<span style="color:var(--g);">✅ Script เวอร์ชันถูกต้อง พบ ${rows.rows.length} แถว — พร้อมใช้งาน!</span>`;
+    // โหลดข้อมูลเข้า memory ด้วยเลย
+    await refreshFromSheets();
+    renderWeekly();
   }catch(e){
     st.innerHTML=`<span style="color:var(--r);">❌ เชื่อมต่อไม่ได้: ${e.message}<br>ตรวจสอบว่า Who has access = <strong>Anyone</strong> และกด Allow ตอน Authorize</span>`;
   }
@@ -1329,8 +1363,42 @@ async function refreshFromSheets(){
   }
 }
 
-// Debug: ดูข้อมูลดิบจาก Sheets
-async function debugSheets(){
+// Debug: ดูข้อมูลดิบจาก Sheets ตรงในหน้า Weekly
+async function showWeeklyDebug(){
+  const panel = document.getElementById('wk-debug-panel');
+  if(panel.style.display !== 'none'){
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+  panel.textContent = '⏳ กำลังดึงข้อมูลดิบจาก Sheets...';
+  try{
+    const d = await callGS({action:'getAll'});
+    if(!d.rows || d.rows.length === 0){
+      panel.textContent = '❌ Sheets ส่งกลับ rows ว่าง\nตรวจสอบ:\n1. Sheet ชื่อ "Attendance" มีข้อมูลไหม?\n2. Deploy ใหม่แล้วหรือยัง (ต้อง New Deployment ทุกครั้งที่แก้ Script)';
+      return;
+    }
+    const sample = d.rows[0];
+    const keys = Object.keys(sample);
+    let msg = `✅ พบ ${d.rows.length} แถวใน Sheets\n`;
+    msg += `\n📋 ชื่อ column: ${keys.join(' | ')}\n`;
+    msg += `\n🔎 ตัวอย่าง 3 แถวแรก:\n`;
+    d.rows.slice(0,3).forEach((r,i)=>{
+      const rawDate = r['วันที่'] || r['date'] || r['Date'] || '';
+      const parsedDate = parseSheetDate(rawDate);
+      msg += `\n[${i+1}] ชื่อ="${r['ชื่อพนักงาน']||'?'}" วันที่ดิบ="${rawDate}" → parse="${parsedDate}" สถานะ="${r['สถานะ']||'?'}"`;
+    });
+    msg += `\n\n📦 entries ใน memory หลัง refresh: ${entries.length} รายการ`;
+    const matched = entries.filter(e=> d.rows.some(r=>{
+      const n=r['ชื่อพนักงาน']||''; const dt=parseSheetDate(r['วันที่']||'');
+      return e.name===n && e.date===dt;
+    }));
+    msg += `\n✅ match แล้ว: ${matched.length} รายการ`;
+    panel.textContent = msg;
+  }catch(e){
+    panel.textContent = `❌ Error: ${e.message}\nอาจต้อง Deploy ใหม่ใน Apps Script`;
+  }
+}
   if(!shUrl){alert('กรุณาเชื่อมต่อ Sheets ก่อน');return;}
   const st=document.getElementById('sh-st');
   st.textContent='กำลังดึงข้อมูล debug...';
