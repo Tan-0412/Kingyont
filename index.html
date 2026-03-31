@@ -64,7 +64,8 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .wname{text-align:left!important;font-weight:700;background:#fafafa;min-width:88px;}
 .wnum{background:#fafafa;color:var(--mt);font-size:10px;}
 .win{color:#1D9E75;font-weight:700;}.wout{color:#E24B4A;font-weight:700;}
-.wp{color:#378ADD;font-size:11px;}.wno{color:var(--mt);font-size:11px;}
+.wp{color:#378ADD;font-size:11px;font-weight:600;}
+.wno{background:#FFF5F5;color:#c53030;font-size:11px;font-weight:600;}
 .wabs{background:#FED7D7;color:#c53030;font-weight:700;font-size:11px;}
 .wlv{background:#FEEBC8;color:#744210;font-size:11px;}
 .wsk{background:#DBEAFE;color:#1e3a8a;font-size:11px;}
@@ -447,6 +448,12 @@ function ok(data) {
       <button class="btn bp" onclick="loadAll()">🔄 ดึงข้อมูลทั้งหมด</button>
       <button class="btn bo" onclick="loadNotes()">📌 ดึงหมายเหตุวัน</button>
     </div>
+    <div class="dvd"></div>
+    <h3>☁️ อัปโหลดข้อมูลในเครื่องขึ้น Google Sheets</h3>
+    <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">ใช้เมื่อมีข้อมูลเก่าในเครื่องที่ยังไม่เคย Sync ขึ้น Sheets — จะส่งข้อมูลทุกรายการขึ้นไป</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn bp" onclick="syncAll()" style="background:var(--p);">⬆️ Sync ข้อมูลทั้งหมดขึ้น Sheets (<span id="sync-all-cnt">0</span> รายการ)</button>
+    </div>
     <div id="load-st" style="font-size:12px;margin-top:8px;"></div>
   </div>
 </div>
@@ -541,6 +548,7 @@ function init(){
     sm.innerHTML+=`<option value="${v}"${i===0?' selected':''}>${t}</option>`;
   }
   buildEmpSel();renderToday();renderAlerts();
+  updateSyncCnt();
   if(shUrl){
     document.getElementById('sh-url').value=shUrl;
     document.getElementById('sh-test').style.display='';
@@ -811,9 +819,12 @@ function renderWeekly(){
       else if(en.status==='leave'){row+=`<td colspan="5" class="wlv">ลาพักร้อน</td>`;}
       else if(en.status==='sick'){row+=`<td colspan="5" class="wsk">ลาป่วย</td>`;}
       else{
+        const sc1=en.slot1==='ไม่'?'wno':'wp';
+        const sc2=en.slot2==='ไม่'?'wno':'wp';
+        const sc3=en.slot3==='ไม่'?'wno':'wp';
         row+=`<td class="win">${en.timeIn||'—'}${en.status==='late'?'<span class="wlate">สาย</span>':''}</td>
-          <td class="wp">${en.slot1||'—'}</td><td class="wp">${en.slot2||'—'}</td>
-          <td class="wp">${en.slot3||'—'}</td><td class="wout">${en.timeOut||'—'}</td>`;
+          <td class="${sc1}">${en.slot1||'—'}</td><td class="${sc2}">${en.slot2||'—'}</td>
+          <td class="${sc3}">${en.slot3||'—'}</td><td class="wout">${en.timeOut||'—'}</td>`;
       }
     });
     return row+'</tr>';
@@ -848,9 +859,9 @@ function renderMonthly(){
     const ee=me.filter(e=>e.name===emp.name);
     const cs=s=>ee.filter(e=>e.status===s).length;
     const norm=ee.filter(e=>['normal','late'].includes(e.status)).length;
-    const ins=ee.filter(e=>e.timeIn).map(e=>e.timeIn);
-    const outs=ee.filter(e=>e.timeOut).map(e=>e.timeOut);
-    const hrs=ee.filter(e=>e.timeIn&&e.timeOut).map(e=>{
+    const ins=ee.filter(e=>e.timeIn&&/^\d{1,2}:\d{2}$/.test(e.timeIn)).map(e=>e.timeIn);
+    const outs=ee.filter(e=>e.timeOut&&/^\d{1,2}:\d{2}$/.test(e.timeOut)).map(e=>e.timeOut);
+    const hrs=ee.filter(e=>e.timeIn&&e.timeOut&&/^\d{1,2}:\d{2}$/.test(e.timeIn)&&/^\d{1,2}:\d{2}$/.test(e.timeOut)).map(e=>{
       const[h1,m1]=e.timeIn.split(':').map(Number),[h2,m2]=e.timeOut.split(':').map(Number);
       return((h2*60+m2)-(h1*60+m1))/60;
     });
@@ -875,7 +886,10 @@ function renderMonthly(){
 }
 
 function avgt(ts){
-  const m=ts.map(t=>{const[h,mi]=t.split(':').map(Number);return h*60+mi;});
+  // กรองเฉพาะ time format HH:MM ที่ถูกต้อง
+  const valid=ts.filter(t=>t&&/^\d{1,2}:\d{2}$/.test(t));
+  if(!valid.length) return '—';
+  const m=valid.map(t=>{const[h,mi]=t.split(':').map(Number);return h*60+mi;});
   const a=Math.round(m.reduce((x,y)=>x+y,0)/m.length);
   return `${String(Math.floor(a/60)).padStart(2,'0')}:${String(a%60).padStart(2,'0')}`;
 }
@@ -945,6 +959,28 @@ function syncEntry(entry){
       ?'<span style="color:var(--g);">☁️ Sync แล้ว ✓</span>'
       :'<span style="color:var(--r);">⚠️ Sync ล้มเหลว ข้อมูลยังอยู่ในเครื่อง</span>';
   });
+}
+
+// [FIX] Sync ข้อมูลทั้งหมดจาก localStorage ขึ้น Sheets ทีละรายการ
+async function syncAll(){
+  if(!shUrl){alert('กรุณาเชื่อมต่อ Google Sheets ก่อน');return;}
+  const st=document.getElementById('load-st');
+  if(!confirm(`จะ Sync ข้อมูลทั้งหมด ${entries.length} รายการ ขึ้น Google Sheets ใช่ไหม?\n(รายการที่มีอยู่แล้วใน Sheets จะถูกเขียนทับด้วยข้อมูลในเครื่อง)`))return;
+  st.textContent=`กำลัง Sync 0/${entries.length}...`;
+  let ok=0,fail=0;
+  for(let i=0;i<entries.length;i++){
+    const e=entries[i];
+    st.textContent=`กำลัง Sync ${i+1}/${entries.length}... (${e.name} ${e.date})`;
+    const d=await callGS({action:'save',id:e.id,name:e.name,date:e.date,
+      timeIn:e.timeIn||'',timeOut:e.timeOut||'',status:e.status,
+      slot1:e.slot1||'',slot2:e.slot2||'',slot3:e.slot3||''});
+    if(d.success) ok++; else fail++;
+    // หน่วงเล็กน้อยไม่ให้ request ถี่เกินไป
+    await new Promise(r=>setTimeout(r,300));
+  }
+  st.innerHTML=fail===0
+    ?`<span style="color:var(--g);">✅ Sync สำเร็จทั้งหมด ${ok} รายการ — ไปดูใน Google Sheets ได้เลย (Sheet ชื่อ <strong>Attendance</strong>)</span>`
+    :`<span style="color:var(--o);">⚠️ Sync สำเร็จ ${ok} รายการ / ล้มเหลว ${fail} รายการ</span>`;
 }
 
 async function loadAll(){
@@ -1049,6 +1085,11 @@ ${document.querySelector('#tab-monthly .tw').outerHTML}
   },500);
 }
 
+function updateSyncCnt(){
+  const el=document.getElementById('sync-all-cnt');
+  if(el) el.textContent=entries.length;
+}
+
 // TABS
 function sw(id,el){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -1058,6 +1099,7 @@ function sw(id,el){
   if(id==='weekly')renderWeekly();
   if(id==='monthly')renderMonthly();
   if(id==='emps')renderEmps();
+  if(id==='sheets')updateSyncCnt();
 }
 
 function toast(msg,col='g'){
