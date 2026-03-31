@@ -1162,7 +1162,7 @@ async function loadAll(){
     if(!name||!date)return;
     if(!entries.find(e=>e.name===name&&e.date===date)){
       entries.push({id:String(r['ID']||`${date}_${name}`),name,date,
-        timeIn:String(r['เวลาIN']||''),timeOut:String(r['เวลาOUT']||''),
+        timeIn:parseSheetTime(r['เวลาIN']||''),timeOut:parseSheetTime(r['เวลาOUT']||''),
         status:String(r['สถานะ']||'normal'),
         slot1:String(r['9-11']||''),slot2:String(r['13-15']||''),slot3:String(r['15-17']||'')});
       added++;
@@ -1292,6 +1292,40 @@ function parseSheetDate(raw){
   return s.substring(0,10);
 }
 
+// แปลงค่าเวลาจาก Google Sheets ให้เป็น HH:mm
+// รองรับ: "09:00", "9:00", "1899-12-30T09:00:00.000Z", serial 0.375 ฯลฯ
+function parseSheetTime(raw){
+  if(!raw && raw!==0) return '';
+  const s = String(raw).trim();
+  // รูปแบบ HH:mm หรือ H:mm อยู่แล้ว
+  if(/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)){
+    const p=s.split(':');
+    return `${p[0].padStart(2,'0')}:${p[1]}`;
+  }
+  // ISO datetime เช่น 1899-12-30T09:00:00.000Z
+  if(/T\d{2}:\d{2}/.test(s)){
+    const m=s.match(/T(\d{2}):(\d{2})/);
+    if(m) return `${m[1]}:${m[2]}`;
+  }
+  // Google Sheets time serial (fraction of a day, เช่น 0.375 = 09:00)
+  const n=parseFloat(s);
+  if(!isNaN(n) && n>=0 && n<1){
+    const totalMin=Math.round(n*1440);
+    const h=Math.floor(totalMin/60), m=totalMin%60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  // Date object ที่มีเวลา
+  const d=new Date(s);
+  if(!isNaN(d.getTime())){
+    const h=d.getUTCHours(), m=d.getUTCMinutes();
+    if(h>0||m>0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    // ถ้า UTC เป็น 0 ลอง local time
+    const lh=d.getHours(), lm=d.getMinutes();
+    if(lh>0||lm>0) return `${String(lh).padStart(2,'0')}:${String(lm).padStart(2,'0')}`;
+  }
+  return s; // คืนค่าเดิมถ้า parse ไม่ได้
+}
+
 // หา key จาก object โดยไม่สนใจ whitespace และ case
 function getField(obj, ...keys){
   for(const k of keys){
@@ -1328,8 +1362,8 @@ async function refreshFromSheets(){
         const entry={
           id: getField(r,'ID','id') || `${date}_${name}`,
           name, date,
-          timeIn:  getField(r,'เวลาIN','เวลาเข้า','IN','timeIn','in'),
-          timeOut: getField(r,'เวลาOUT','เวลาออก','OUT','timeOut','out'),
+          timeIn:  parseSheetTime(getField(r,'เวลาIN','เวลาเข้า','IN','timeIn','in')),
+          timeOut: parseSheetTime(getField(r,'เวลาOUT','เวลาออก','OUT','timeOut','out')),
           status:  getField(r,'สถานะ','status','Status') || 'normal',
           slot1:   getField(r,'9-11','slot1','9-11น'),
           slot2:   getField(r,'13-15','slot2','13-15น'),
