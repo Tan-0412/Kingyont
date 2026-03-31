@@ -69,6 +69,8 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .wabs{background:#FED7D7;color:#c53030;font-weight:700;font-size:11px;}
 .wlv{background:#FEEBC8;color:#744210;font-size:11px;}
 .wsk{background:#DBEAFE;color:#1e3a8a;font-size:11px;}
+.wfh{background:#E0F2FE;color:#0369a1;font-size:11px;}
+.woffsite{background:#F0FDF4;color:#166534;font-size:11px;}
 .whol{background:#EDE9FE;color:#4c1d95;font-size:11px;font-style:italic;}
 .wnc{background:#E2E8F0;color:#4a5568;font-size:11px;font-style:italic;}
 .wlate{color:#EF9F27;font-size:10px;font-weight:700;display:block;}
@@ -218,7 +220,9 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
     <button class="btn bo bsm" onclick="wkGo(-1)">← ก่อนหน้า</button>
     <span class="wklbl" id="wk-lbl">—</span>
     <button class="btn bo bsm" onclick="wkGo(1)">ถัดไป →</button>
-    <span style="font-size:12px;color:var(--g);cursor:pointer;" onclick="wkOff=0;renderWeekly()">↩ สัปดาห์นี้</span>
+    <span style="font-size:12px;color:var(--g);cursor:pointer;" onclick="wkOff=0;fetchAndRenderWeekly()">↩ สัปดาห์นี้</span>
+    <button class="btn bo bsm" onclick="fetchAndRenderWeekly()" title="โหลดข้อมูลใหม่จาก Sheets">🔄 รีเฟรช</button>
+    <span id="wk-fetch-st" style="font-size:11px;color:var(--mt);"></span>
     <div class="lgd">
       <div class="lgdi"><div class="lgdd" style="background:#FAEEDA;"></div>จ</div>
       <div class="lgdi"><div class="lgdd" style="background:#FBEAF0;"></div>อ</div>
@@ -228,6 +232,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <div class="lgdi"><div class="lgdd" style="background:#E9D8FD;"></div>ส</div>
       <div class="lgdi"><div class="lgdd" style="background:#FED7D7;"></div>ขาด</div>
       <div class="lgdi"><div class="lgdd" style="background:#EDE9FE;"></div>หยุด/ไม่เช็ค</div>
+      <div class="lgdi"><div class="lgdd" style="background:#fffbf0;border:1px solid #e2d9c5;"></div>ไม่มีข้อมูล</div>
     </div>
   </div>
   <div class="dnbar">
@@ -241,7 +246,9 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
 <div id="tab-monthly" class="panel">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
     <span style="font-size:13px;font-weight:600;">เดือน:</span>
-    <select id="sum-mon" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--bd);" onchange="renderMonthly()"></select>
+    <select id="sum-mon" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--bd);" onchange="fetchAndRenderMonthly()"></select>
+    <button class="btn bo bsm" onclick="fetchAndRenderMonthly()">🔄 รีเฟรชจาก Sheets</button>
+    <span id="mon-fetch-st" style="font-size:11px;color:var(--mt);"></span>
   </div>
   <div class="sgrid" id="stat-grid"></div>
   <div class="sh">สรุปรายบุคคล</div>
@@ -775,7 +782,31 @@ function getMonday(off){
   const d=new Date(today),day=d.getDay(),diff=day===0?-6:1-day;
   d.setDate(d.getDate()+diff+off*7);return d;
 }
-function wkGo(dir){wkOff+=dir;renderWeekly();}
+function wkGo(dir){wkOff+=dir;fetchAndRenderWeekly();}
+
+async function fetchAndRenderWeekly(){
+  const st=document.getElementById('wk-fetch-st');
+  if(shUrl){
+    if(st) st.textContent='⏳ กำลังดึงจาก Sheets...';
+    document.getElementById('wk-body').innerHTML='<tr><td colspan="32" style="text-align:center;padding:16px;color:#718096;font-size:12px;">⏳ กำลังดึงข้อมูลจาก Google Sheets...</td></tr>';
+    await refreshFromSheets();
+    if(st) st.textContent='✅ อัปเดตแล้ว';
+    setTimeout(()=>{if(st)st.textContent='';},3000);
+  }
+  renderWeekly();
+}
+
+async function fetchAndRenderMonthly(){
+  const st=document.getElementById('mon-fetch-st');
+  if(shUrl){
+    if(st) st.textContent='⏳ กำลังดึงจาก Sheets...';
+    document.getElementById('mon-body').innerHTML='<tr><td colspan="10" style="text-align:center;padding:16px;color:#718096;font-size:12px;">⏳ กำลังดึงข้อมูลจาก Google Sheets...</td></tr>';
+    await refreshFromSheets();
+    if(st) st.textContent='✅ อัปเดตแล้ว';
+    setTimeout(()=>{if(st)st.textContent='';},3000);
+  }
+  renderMonthly();
+}
 
 function renderWeekly(){
   const mon=getMonday(wkOff);
@@ -815,13 +846,37 @@ function renderWeekly(){
     days.forEach(d=>{
       const ds2=dstr(d),dn=dayNotes[ds2]||{};
       const en=entries.find(x=>x.name===emp.name&&x.date===ds2);
-      if(dn.type==='holiday'){row+=`<td colspan="5" class="whol">🎌 ${dn.note||'วันหยุด'}</td>`;}
-      else if(dn.type==='nocheck'){row+=`<td colspan="5" class="wnc">📝 ${dn.note||'ไม่ได้เช็ค'}</td>`;}
-      else if(!en){row+=`<td colspan="5" style="color:var(--mt);font-size:11px;background:#fafafa;">—</td>`;}
-      else if(en.status==='absent'){row+=`<td colspan="5" class="wabs">ขาดงาน</td>`;}
-      else if(en.status==='leave'){row+=`<td colspan="5" class="wlv">ลาพักร้อน</td>`;}
-      else if(en.status==='sick'){row+=`<td colspan="5" class="wsk">ลาป่วย</td>`;}
-      else{
+      if(dn.type==='holiday'){
+        row+=`<td colspan="5" class="whol">🎌 ${dn.note||'วันหยุด'}</td>`;
+      } else if(dn.type==='nocheck'){
+        row+=`<td colspan="5" class="wnc">📝 ${dn.note||'ไม่ได้เช็ค'}</td>`;
+      } else if(!en){
+        // ไม่มีข้อมูล — แสดง dropdown เลือกสาเหตุได้ทันที
+        const uid=`nodata_${emp.name.replace(/[^a-zA-Z0-9]/g,'_')}_${ds2}`;
+        row+=`<td colspan="5" style="background:#fffbf0;padding:4px 6px;">
+          <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+            <select id="${uid}" style="font-size:10px;padding:2px 4px;border-radius:5px;border:1px solid #e2d9c5;color:#744210;background:#fffbf0;font-family:inherit;"
+              onchange="quickEntry('${emp.name}','${ds2}',this.value)">
+              <option value="">— ไม่มีข้อมูล</option>
+              <option value="absent">❌ ขาดงาน</option>
+              <option value="leave">🌴 ลาพักร้อน</option>
+              <option value="sick">🤒 ลาป่วย</option>
+              <option value="wfh">🏠 Work from home</option>
+              <option value="offsite">🚗 ออกนอกสถานที่</option>
+            </select>
+          </div>
+        </td>`;
+      } else if(en.status==='absent'){
+        row+=`<td colspan="5" class="wabs">ขาดงาน</td>`;
+      } else if(en.status==='leave'){
+        row+=`<td colspan="5" class="wlv">ลาพักร้อน</td>`;
+      } else if(en.status==='sick'){
+        row+=`<td colspan="5" class="wsk">ลาป่วย</td>`;
+      } else if(en.status==='wfh'){
+        row+=`<td colspan="5" style="background:#E0F2FE;color:#0369a1;font-size:11px;">🏠 WFH</td>`;
+      } else if(en.status==='offsite'){
+        row+=`<td colspan="5" style="background:#F0FDF4;color:#166534;font-size:11px;">🚗 ออกนอก</td>`;
+      } else {
         const sc1=en.slot1==='ไม่'?'wno':'wp';
         const sc2=en.slot2==='ไม่'?'wno':'wp';
         const sc3=en.slot3==='ไม่'?'wno':'wp';
@@ -832,6 +887,20 @@ function renderWeekly(){
     });
     return row+'</tr>';
   }).join('');
+}
+
+// บันทึกสาเหตุจาก dropdown ในตารางรายสัปดาห์ทันที
+function quickEntry(name, date, status){
+  if(!status) return;
+  const id=`${date}_${name}_quick_${Date.now()}`;
+  const entry={id,name,date,status,timeIn:'',timeOut:'',slot1:'-',slot2:'-',slot3:'-'};
+  entries=entries.filter(e=>!(e.name===name&&e.date===date));
+  entries.push(entry); saveEnt();
+  if(shUrl) callGS({action:'save',id:entry.id,name:entry.name,date:entry.date,
+    timeIn:'',timeOut:'',status:entry.status,slot1:'-',slot2:'-',slot3:'-'})
+    .then(()=>toast(`บันทึก ${name} (${status}) วันที่ ${date} แล้ว ✓`));
+  else toast(`บันทึก ${name} (${status}) แล้ว ✓`);
+  renderWeekly();
 }
 
 function qDN(ds2,note,type){
@@ -1136,14 +1205,51 @@ function updateSyncCnt(){
   if(el) el.textContent=entries.length;
 }
 
-// TABS
+// ดึงข้อมูลจาก Sheets แบบ upsert (เขียนทับถ้ามีอยู่แล้ว)
+async function refreshFromSheets(){
+  try{
+    const[d,dn]=await Promise.all([callGS({action:'getAll'}),callGS({action:'getNotes'})]);
+    if(d.rows){
+      d.rows.forEach(r=>{
+        const name=String(r['ชื่อพนักงาน']||''),date=String(r['วันที่']||'').substring(0,10);
+        if(!name||!date)return;
+        const idx=entries.findIndex(e=>e.name===name&&e.date===date);
+        const entry={id:String(r['ID']||`${date}_${name}`),name,date,
+          timeIn:String(r['เวลาIN']||''),timeOut:String(r['เวลาOUT']||''),
+          status:String(r['สถานะ']||'normal'),
+          slot1:String(r['9-11']||''),slot2:String(r['13-15']||''),slot3:String(r['15-17']||'')};
+        if(idx>=0)entries[idx]=entry; else entries.push(entry);
+      });
+      saveEnt();
+    }
+    if(dn.notes){
+      dn.notes.forEach(n=>{
+        const date=String(n['วันที่']||'').substring(0,10);
+        if(date)dayNotes[date]={type:String(n['ประเภท']||''),note:String(n['หมายเหตุ']||'')};
+      });
+      saveDayNotesLocal();
+    }
+  }catch(err){console.warn('refreshFromSheets:',err);}
+}
+
+// TABS — ดึงจาก Sheets อัตโนมัติเมื่อเปิด weekly/monthly
 function sw(id,el){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   el.classList.add('active');
-  if(id==='weekly')renderWeekly();
-  if(id==='monthly')renderMonthly();
+  if(id==='weekly'){
+    if(shUrl){
+      document.getElementById('wk-body').innerHTML='<tr><td colspan="32" style="text-align:center;padding:20px;color:#718096;">⏳ กำลังดึงข้อมูลจาก Google Sheets...</td></tr>';
+      refreshFromSheets().then(()=>renderWeekly());
+    } else renderWeekly();
+  }
+  if(id==='monthly'){
+    if(shUrl){
+      document.getElementById('mon-body').innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:#718096;">⏳ กำลังดึงข้อมูล...</td></tr>';
+      refreshFromSheets().then(()=>renderMonthly());
+    } else renderMonthly();
+  }
   if(id==='emps')renderEmps();
   if(id==='sheets')updateSyncCnt();
 }
