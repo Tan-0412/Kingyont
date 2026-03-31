@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบเช็คเวลาทำงาน</title>
+  <link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script>
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js');
+  }
+</script>
+  <!-- OG Image สำหรับ Line/Facebook/Twitter preview -->
+<meta property="og:title" content="ระบบเช็คเวลาทำงาน">
+<meta property="og:description" content="ระบบบันทึกเวลาเข้า-ออกงานพนักงาน">
+<meta property="og:image" content="https://tan-0412.github.io/Kingyont/icon-512.png">
+<meta property="og:url" content="https://tan-0412.github.io/Kingyont/">
+<meta property="og:type" content="website">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
