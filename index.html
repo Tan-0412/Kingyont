@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบเช็คเวลาทำงาน</title>
+  <link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script>
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js');
+  }
+</script>
+  <!-- OG Image สำหรับ Line/Facebook/Twitter preview -->
+<meta property="og:title" content="ระบบเช็คเวลาทำงาน">
+<meta property="og:description" content="ระบบบันทึกเวลาเข้า-ออกงานพนักงาน">
+<meta property="og:image" content="https://tan-0412.github.io/Kingyont/icon-512.png">
+<meta property="og:url" content="https://tan-0412.github.io/Kingyont/">
+<meta property="og:type" content="website">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -1243,8 +1257,10 @@ function buildPrintHTML(title,tableHTML,pageSize){
 body{font-family:'Sarabun',sans-serif;padding:14px;font-size:12px;background:#fff;}
 .top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
 h2{font-size:15px;font-weight:700;}
-.print-btn{padding:8px 20px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Sarabun',sans-serif;}
-.print-btn:hover{background:#085041;}
+.btn-bar{display:flex;gap:8px;}
+.print-btn{padding:8px 18px;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Sarabun',sans-serif;}
+.btn-print{background:#1D9E75;}.btn-print:hover{background:#085041;}
+.btn-pdf{background:#378ADD;}.btn-pdf:hover{background:#1a5fa8;}
 table{border-collapse:collapse;width:100%;font-size:11px;}
 th,td{border:1px solid #bbb;padding:5px 6px;text-align:center;white-space:nowrap;}
 .wh1{background:#1D9E75;color:#fff;}.whm{background:#FAEEDA;}.wht{background:#FBEAF0;}.whw{background:#C6F6D5;}
@@ -1256,15 +1272,44 @@ th,td{border:1px solid #bbb;padding:5px 6px;text-align:center;white-space:nowrap
 .wlate{color:#EF9F27;font-size:9px;font-weight:700;display:block;}
 select{display:none;}
 @media print{
-  .top-bar .print-btn{display:none;}
+  .top-bar .btn-bar{display:none;}
   @page{size:${pageSize};margin:8mm;}
 }
 </style></head><body>
 <div class="top-bar">
   <h2>${title}</h2>
-  <button class="print-btn" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+  <div class="btn-bar">
+    <button class="print-btn btn-print" onclick="window.print()">🖨 พิมพ์</button>
+    <button class="print-btn btn-pdf" id="btn-pdf" onclick="savePDF()">⬇ บันทึก PDF</button>
+  </div>
 </div>
 ${tableHTML}
+<script>
+function savePDF(){
+  const btn=document.getElementById('btn-pdf');
+  btn.textContent='⏳ กำลังสร้าง...';btn.disabled=true;
+  const s1=document.createElement('script');
+  s1.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  s1.onload=function(){
+    const s2=document.createElement('script');
+    s2.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s2.onload=async function(){
+      try{
+        const {jsPDF}=window.jspdf;
+        const el=document.querySelector('table');
+        const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+        const iw=canvas.width,ih=canvas.height;
+        const pdf=new jsPDF({orientation:iw>ih?'landscape':'portrait',unit:'px',format:[iw/2,ih/2]});
+        pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,iw/2,ih/2);
+        pdf.save(document.title+'.pdf');
+      }catch(e){alert('ไม่สามารถสร้าง PDF: '+e.message);}
+      btn.textContent='⬇ บันทึก PDF';btn.disabled=false;
+    };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+}
+<\/script>
 </body></html>`;
 }
 function doPrintWeek(){
