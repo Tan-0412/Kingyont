@@ -904,23 +904,9 @@ function renderWeekly(){
         const sc1=en.slot1==='ไม่'?'wno':'wp';
         const sc2=en.slot2==='ไม่'?'wno':'wp';
         const sc3=en.slot3==='ไม่'?'wno':'wp';
-        row+=`<td class="win">${
-          en.timeIn ? (en.timeIn + (en.status==='late' ? '<span class="wlate">สาย</span>' : '')) :
-          `<select class="no-time-sel" onchange="setNoTimeMark('${en.name}','${en.date}','in',this.value)" title="ไม่มีข้อมูลสแกน">
-             <option value="">—</option>
-             <option value="ลืม" ${en.noTimeIn==='ลืม'?'selected':''}>ลืม</option>
-             <option value="ยกเว้น" ${en.noTimeIn==='ยกเว้น'?'selected':''}>ยกเว้น</option>
-           </select>`
-        }</td>
+        row+=`<td class="win">${noTimeSel(en,'in')}</td>
           <td class="${sc1}">${en.slot1||'—'}</td><td class="${sc2}">${en.slot2||'—'}</td>
-          <td class="${sc3}">${en.slot3||'—'}</td><td class="wout">${
-          en.timeOut ? en.timeOut :
-          `<select class="no-time-sel" onchange="setNoTimeMark('${en.name}','${en.date}','out',this.value)" title="ไม่มีข้อมูลสแกน">
-             <option value="">—</option>
-             <option value="ลืม" ${en.noTimeOut==='ลืม'?'selected':''}>ลืม</option>
-             <option value="ยกเว้น" ${en.noTimeOut==='ยกเว้น'?'selected':''}>ยกเว้น</option>
-           </select>`
-        }</td>`;
+          <td class="${sc3}">${en.slot3||'—'}</td><td class="wout">${noTimeSel(en,'out')}</td>`;
       }
     });
     return row+'</tr>';
@@ -928,6 +914,20 @@ function renderWeekly(){
 }
 
 // บันทึกสาเหตุจาก dropdown ในตารางรายสัปดาห์ทันที
+function noTimeSel(en, field){
+  if(field==='in' && en.timeIn){
+    return en.timeIn + (en.status==='late' ? '<span class="wlate">สาย</span>' : '');
+  }
+  if(field==='out' && en.timeOut) return en.timeOut;
+  const val = field==='in' ? (en.noTimeIn||'') : (en.noTimeOut||'');
+  const nm = en.name.replace(/'/g,"&#39;"), dt = en.date;
+  return '<select class="no-time-sel" onchange="setNoTimeMark(\'' + nm + '\',\'' + dt + '\',\'' + field + '\',this.value)" title="ไม่มีข้อมูลสแกน">'
+    + '<option value=""' + (val===''?' selected':'') + '>—</option>'
+    + '<option value="ลืม"' + (val==='ลืม'?' selected':'') + '>ลืม</option>'
+    + '<option value="ยกเว้น"' + (val==='ยกเว้น'?' selected':'') + '>ยกเว้น</option>'
+    + '</select>';
+}
+
 function setNoTimeMark(name, date, field, value){
   const idx = entries.findIndex(e => e.name===name && e.date===date);
   if(idx < 0) return;
