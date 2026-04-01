@@ -9,7 +9,9 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <script>
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('./sw.js');
+    navigator.serviceWorker.register('/Kingyont/sw.js', {
+  scope: '/Kingyont/'
+});
   }
 </script>
   <!-- OG Image สำหรับ Line/Facebook/Twitter preview -->
