@@ -66,6 +66,15 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .tdl{text-align:left!important;font-weight:600;}.tdn{color:var(--mt);font-size:11px;}
 .tdi{color:var(--g);font-weight:700;}.tdo{color:var(--r);font-weight:700;}
 .tdok{color:var(--b);font-size:11px;}.tdno{color:var(--mt);font-size:11px;}
+/* inline edit */
+.ed-inp{font-size:12px;padding:3px 6px;border-radius:5px;border:1px solid var(--g);font-family:inherit;width:72px;text-align:center;}
+.ed-sel{font-size:12px;padding:3px 5px;border-radius:5px;border:1px solid var(--g);font-family:inherit;background:#fff;cursor:pointer;}
+.ed-slot{display:flex;gap:3px;justify-content:center;}
+.ed-slot-btn{padding:2px 7px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid var(--bd);background:#f8fafc;color:var(--mt);font-family:inherit;}
+.ed-slot-btn.on{background:var(--gl);color:var(--gd);border-color:var(--g);}
+.btn-edit{background:var(--bl);color:#1a365d;border:1px solid #bee3f8;padding:3px 9px;font-size:11px;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;}
+.btn-save{background:var(--g);color:#fff;border:none;padding:3px 9px;font-size:11px;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;}
+.btn-cancel{background:#fff;color:var(--mt);border:1px solid var(--bd);padding:3px 9px;font-size:11px;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;}
 /* weekly table */
 .wt{width:100%;border-collapse:collapse;font-size:11.5px;}
 .wt th,.wt td{border:1px solid #c8cdd5;padding:5px 7px;text-align:center;white-space:nowrap;}
@@ -212,6 +221,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <button class="btn bp" onclick="addEntry()">💾 บันทึก</button>
       <button class="btn bo" onclick="clearForm()">🗑 ล้างฟอร์ม</button>
       <button class="btn bb2 bsm" onclick="openDayModal()">📌 ตั้งวันหยุด/ไม่เช็ค</button>
+      <button class="btn bsm" style="background:var(--p);color:#fff;" onclick="openBulkModal()">👥 สร้างรายการทีมทั้งหมด</button>
     </div>
   </div>
   <!-- [FIX3] เปลี่ยนจาก "รายการวันนี้" เป็น "รายการล่าสุด" และเรียงล่าสุดก่อน -->
@@ -611,6 +621,25 @@ function ok(data) {
   </div>
 </div>
 
+<!-- MODAL: สร้างรายการทีม -->
+<div class="mbg" id="bulk-modal">
+  <div class="modal">
+    <h3>👥 สร้างรายการทีมทั้งหมด</h3>
+    <p style="font-size:12px;color:var(--mt);margin-bottom:12px;line-height:1.6;">
+      สร้างรายการรอไว้ให้พนักงานทุกคน (เฉพาะคนที่ยังไม่มีรายการในวันนั้น)<br>
+      ค่าเริ่มต้นจะเป็น <strong>ว่าง</strong> แสดงสีเทา — ค่อยกด ✏️ แก้ไขทีละคนได้เลย
+    </p>
+    <div class="fld">
+      <label>วันที่</label>
+      <input type="date" id="bulk-date">
+    </div>
+    <div class="macts">
+      <button class="btn bo" onclick="closeModal('bulk-modal')">ยกเลิก</button>
+      <button class="btn bp" style="background:var(--p);" onclick="bulkCreateAll()">✅ สร้างรายการ</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -861,20 +890,15 @@ function delEntry(id){
   if(shUrl&&e) callGS({action:'delete',id:e.id});
 }
 
-// [FIX3] renderToday: แสดงรายการที่เพิ่งบันทึก (lastAddedIds) เรียงล่าสุดก่อน
-// ถ้ายังไม่เคยบันทึกในรอบ session นี้ ให้ fallback แสดงรายการวันนี้
 function renderToday(){
   const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาด',leave:'🌴 พักร้อน',sick:'🤒 ป่วย'};
   const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3'};
 
-  let te;
-  let modeLabel='';
+  let te,modeLabel='';
   if(lastAddedIds.length>0){
-    // กรองรายการตาม lastAddedIds เรียงตาม order ใน lastAddedIds (ล่าสุดอยู่หน้า)
     te=lastAddedIds.map(id=>entries.find(e=>e.id===id)).filter(Boolean);
     modeLabel=`(${te.length} รายการล่าสุดที่บันทึกในรอบนี้)`;
   } else {
-    // Fallback: วันนี้
     te=[...entries.filter(e=>e.date===todayStr)].sort((a,b)=>b.id.localeCompare(a.id));
     modeLabel=te.length>0?'(วันนี้)':'';
   }
@@ -883,19 +907,147 @@ function renderToday(){
   document.getElementById('recent-mode-lbl').textContent=modeLabel;
   document.getElementById('today-empty').style.display=te.length?'none':'';
 
-  // [FIX3] เพิ่มคอลัมน์ "วันที่" เข้าไปในตาราง
-  document.getElementById('today-body').innerHTML=te.map((e,i)=>`<tr>
+  document.getElementById('today-body').innerHTML=te.map((e,i)=>renderRow(e,i)).join('');
+}
+
+function renderRow(e, i, editMode=false){
+  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาด',leave:'🌴 พักร้อน',sick:'🤒 ป่วย'};
+  const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3'};
+  const id=e.id.replace(/'/g,"\'");
+
+  if(editMode){
+    // โหมดแก้ไข — แสดง input/select แทน
+    const empOpts=emps.map(emp=>`<option value="${emp.name}"${emp.name===e.name?' selected':''}>${emp.name}</option>`).join('');
+    const s1on=e.slot1==='อยู่';const s2on=e.slot2==='อยู่';const s3on=e.slot3==='อยู่';
+    return `<tr id="row-${e.id}" style="background:#f0fdf9;">
+      <td class="tdn">${i+1}</td>
+      <td><select class="ed-sel" id="ed-name-${e.id}">${empOpts}</select></td>
+      <td><input type="date" class="ed-inp" id="ed-date-${e.id}" value="${e.date}" style="width:110px;"></td>
+      <td><input type="time" class="ed-inp" id="ed-in-${e.id}" value="${e.timeIn||''}"></td>
+      <td><div class="ed-slot"><button class="ed-slot-btn${s1on?' on':''}" id="eds1-${e.id}" onclick="togEdSlot('${id}','s1')">อยู่</button></div></td>
+      <td><div class="ed-slot"><button class="ed-slot-btn${s2on?' on':''}" id="eds2-${e.id}" onclick="togEdSlot('${id}','s2')">อยู่</button></div></td>
+      <td><div class="ed-slot"><button class="ed-slot-btn${s3on?' on':''}" id="eds3-${e.id}" onclick="togEdSlot('${id}','s3')">อยู่</button></div></td>
+      <td><input type="time" class="ed-inp" id="ed-out-${e.id}" value="${e.timeOut||''}"></td>
+      <td><select class="ed-sel" id="ed-stat-${e.id}">
+        <option value="normal"${e.status==='normal'?' selected':''}>✅ ปกติ</option>
+        <option value="late"${e.status==='late'?' selected':''}>⏰ สาย</option>
+        <option value="absent"${e.status==='absent'?' selected':''}>❌ ขาด</option>
+        <option value="leave"${e.status==='leave'?' selected':''}>🌴 พักร้อน</option>
+        <option value="sick"${e.status==='sick'?' selected':''}>🤒 ป่วย</option>
+      </select></td>
+      <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
+        <button class="btn-save" onclick="saveEdit('${id}')">💾 บันทึก</button>
+        <button class="btn-cancel" onclick="cancelEdit('${id}')">ยกเลิก</button>
+      </td>
+    </tr>`;
+  }
+
+  // โหมดดูปกติ
+  const isDraft = e._draft && !e.timeIn && !e.timeOut;
+  const rowStyle = isDraft ? 'background:#f8fafc;color:#a0aec0;' : '';
+  const draftBadge = isDraft ? '<span style="font-size:10px;background:#e2e8f0;color:#718096;padding:1px 6px;border-radius:8px;margin-left:4px;">รอกรอก</span>' : '';
+  return `<tr id="row-${e.id}" style="${rowStyle}">
     <td class="tdn">${i+1}</td>
-    <td class="tdl">${e.name}</td>
-    <td style="font-size:11px;color:var(--mt);">${fmtDate(e.date)}</td>
-    <td class="tdi">${e.timeIn||'—'}</td>
-    <td class="${e.slot1==='อยู่'?'tdok':'tdno'}">${e.slot1||'—'}</td>
-    <td class="${e.slot2==='อยู่'?'tdok':'tdno'}">${e.slot2||'—'}</td>
-    <td class="${e.slot3==='อยู่'?'tdok':'tdno'}">${e.slot3||'—'}</td>
-    <td class="tdo">${e.timeOut||'—'}</td>
-    <td><span class="bdg ${SC[e.status]}">${SM[e.status]}</span></td>
-    <td><button class="btn br2 bxs" onclick="delEntry('${e.id}')">ลบ</button></td>
-  </tr>`).join('');
+    <td class="tdl" style="${isDraft?'color:#a0aec0;':''}">${e.name}${draftBadge}</td>
+    <td style="font-size:11px;color:${isDraft?'#cbd5e0':'var(--mt)'};">${fmtDate(e.date)}</td>
+    <td class="${isDraft?'':'tdi'}" style="${isDraft?'color:#cbd5e0;':''}">${e.timeIn||'—'}</td>
+    <td class="${isDraft?'':''}${!isDraft&&e.slot1==='อยู่'?'tdok':'tdno'}">${e.slot1||'—'}</td>
+    <td class="${!isDraft&&e.slot2==='อยู่'?'tdok':'tdno'}">${e.slot2||'—'}</td>
+    <td class="${!isDraft&&e.slot3==='อยู่'?'tdok':'tdno'}">${e.slot3||'—'}</td>
+    <td class="${isDraft?'':'tdo'}" style="${isDraft?'color:#cbd5e0;':''}">${e.timeOut||'—'}</td>
+    <td><span class="bdg ${isDraft?'':''}${SC[e.status]}" style="${isDraft?'opacity:.5;':''}">${SM[e.status]}</span></td>
+    <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
+      <button class="btn-edit" onclick="startEdit('${id}')">✏️ แก้ไข</button>
+      <button class="btn br2 bxs" onclick="delEntry('${id}')">ลบ</button>
+    </td>
+  </tr>`;
+}
+
+function startEdit(id){
+  const e=entries.find(x=>x.id===id);
+  if(!e) return;
+  const te=lastAddedIds.length>0
+    ? lastAddedIds.map(i=>entries.find(x=>x.id===i)).filter(Boolean)
+    : [...entries.filter(x=>x.date===todayStr)].sort((a,b)=>b.id.localeCompare(a.id));
+  const i=te.findIndex(x=>x.id===id);
+  const row=document.getElementById('row-'+id);
+  if(row) row.outerHTML=renderRow(e,i,true);
+}
+
+function togEdSlot(id,slot){
+  const btnId=`eds${slot.replace('s','')}-${id}`;
+  const btn=document.getElementById(btnId);
+  if(btn) btn.classList.toggle('on');
+}
+
+function saveEdit(id){
+  const idx=entries.findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const name=document.getElementById('ed-name-'+id)?.value||entries[idx].name;
+  const date=document.getElementById('ed-date-'+id)?.value||entries[idx].date;
+  const timeIn=document.getElementById('ed-in-'+id)?.value||'';
+  const timeOut=document.getElementById('ed-out-'+id)?.value||'';
+  const status=document.getElementById('ed-stat-'+id)?.value||'normal';
+  const s1=document.getElementById('eds1-'+id)?.classList.contains('on');
+  const s2=document.getElementById('eds2-'+id)?.classList.contains('on');
+  const s3=document.getElementById('eds3-'+id)?.classList.contains('on');
+  const notime=['absent','leave','sick'].includes(status);
+  entries[idx]={...entries[idx],
+    name, date,
+    timeIn: notime?'':timeIn,
+    timeOut: notime?'':timeOut,
+    status,
+    slot1: notime?'-':(s1?'อยู่':'ไม่'),
+    slot2: notime?'-':(s2?'อยู่':'ไม่'),
+    slot3: notime?'-':(s3?'อยู่':'ไม่'),
+    _draft: false,
+  };
+  saveEnt();
+  renderToday();renderAlerts();
+  toast('แก้ไขแล้ว ✓');
+  if(shUrl) syncEntry(entries[idx]);
+}
+
+function cancelEdit(id){
+  renderToday();
+}
+
+function openBulkModal(){
+  document.getElementById('bulk-date').value = todayStr;
+  document.getElementById('bulk-modal').classList.add('show');
+}
+
+async function bulkCreateAll(){
+  const date = document.getElementById('bulk-date').value || todayStr;
+  closeModal('bulk-modal');
+  if(new Date(date+'T12:00:00').getDay()===0){toast('วันอาทิตย์ไม่ทำการ','r');return;}
+  const existing = entries.filter(e=>e.date===date).map(e=>e.name);
+  const toCreate = emps.filter(emp=>!existing.includes(emp.name));
+  if(toCreate.length===0){toast('มีรายการครบทุกคนแล้ว ✓');return;}
+
+  const newEntries=[];
+  toCreate.forEach(emp=>{
+    const id=`${date}_${emp.name}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+    const entry={id, name:emp.name, date,
+      timeIn:'', timeOut:'', status:'normal',
+      slot1:'อยู่', slot2:'อยู่', slot3:'อยู่',
+      _draft: true
+    };
+    entries.push(entry);
+    lastAddedIds=[id,...lastAddedIds];
+    newEntries.push(entry);
+  });
+
+  saveEnt(); saveLastIds();
+  renderToday(); renderAlerts();
+  toast(`✅ สร้างรายการ ${newEntries.length} คนแล้ว — กด ✏️ แก้ไขทีละคนได้เลย`);
+
+  if(shUrl){
+    for(const entry of newEntries){
+      await syncEntry(entry);
+    }
+    toast(`☁️ Sync ${newEntries.length} คนขึ้น Sheets แล้ว`);
+  }
 }
 
 function renderAlerts(){
