@@ -24,7 +24,7 @@
 :root{--g:#1D9E75;--gd:#085041;--gl:#E1F5EE;--r:#E24B4A;--rl:#FCEBEB;--o:#EF9F27;--ol:#FAEEDA;--b:#378ADD;--bl:#E6F1FB;--p:#7F77DD;--pl:#EEEDFE;--bd:#e2e8f0;--tx:#1a202c;--mt:#718096;--bg:#f7fafc;}
 body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font-size:14px;}
 .wrap{max-width:1500px;margin:0 auto;padding:12px;}
-.card{background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:visible;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.card{background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);}
 .topbar{background:linear-gradient(135deg,#1D9E75,#085041);padding:13px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 .tb-t{color:#fff;font-size:17px;font-weight:700;}
 .tb-s{color:rgba(255,255,255,.75);font-size:12px;margin-top:1px;}
@@ -88,8 +88,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .whol{background:#EDE9FE;color:#4c1d95;font-size:11px;font-style:italic;}
 .wnc{background:#E2E8F0;color:#4a5568;font-size:11px;font-style:italic;}
 .wlate{color:#EF9F27;font-size:10px;font-weight:700;display:block;}
-.no-time-sel{font-size:10px;border:1px solid #cbd5e1;border-radius:4px;padding:1px 2px;background:#fffbeb;color:#92400e;cursor:pointer;width:62px;}
-.no-time-sel option{font-size:11px;}
 /* stats */
 .sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;}
 .sc{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:13px;text-align:center;}
@@ -328,6 +326,9 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
     <div class="step"><div class="stepn">2</div><div class="stept">คัดลอก Script ด้านล่าง → วางลงไปทั้งหมด → กด <strong>Ctrl+S</strong></div></div>
     <div class="step"><div class="stepn">3</div><div class="stept"><strong>Deploy → New Deployment</strong><br>· Type: <strong>Web app</strong> · Execute as: <strong>Me</strong> · Who has access: <strong>Anyone</strong><br>→ กด <strong>Deploy</strong> → กด <strong>Authorize access</strong> → เลือก Google Account → กด <strong>Allow</strong><br>→ Copy URL ที่ได้ (ขึ้นต้นด้วย https://script.google.com/macros/s/...)</div></div>
     <div class="step"><div class="stepn">4</div><div class="stept">วาง URL ด้านล่าง → กด <strong>เชื่อมต่อ</strong> → กด <strong>🧪 ทดสอบ</strong> ให้ขึ้น ✅ แล้วบันทึกข้อมูล → ไปดูใน Sheets จะมี Sheet ชื่อ <strong>Attendance</strong> ปรากฏขึ้น</div></div>
+    <div style="background:#E6F1FB;border:1px solid #bee3f8;border-radius:8px;padding:10px 13px;margin-bottom:10px;font-size:12px;color:#1a365d;line-height:1.7;">
+      💡 <strong>เคล็ดลับ:</strong> เปิดไฟล์ index.html ด้วย Notepad/VSCode แล้วหาบรรทัด <code>const HARDCODED_URL = '';</code> ใส่ URL ของคุณระหว่าง <code>' '</code> เพื่อให้ทุกเครื่องที่เปิดไฟล์ใช้งานได้ทันทีโดยไม่ต้องกรอก URL ซ้ำ
+    </div>
     <div class="urow">
       <input type="text" id="sh-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
       <button class="btn bp" onclick="connectSheets()">🔌 เชื่อมต่อ</button>
@@ -571,7 +572,11 @@ const WCL=['','whm','wht','whw','whth','whf','whs'];
 let entries=JSON.parse(localStorage.getItem('a_ent')||'[]');
 let emps=JSON.parse(localStorage.getItem('a_emp')||JSON.stringify(EMP_DEF.map(n=>({name:n,pos:'พนักงาน'}))));
 let dayNotes=JSON.parse(localStorage.getItem('a_dn')||'{}');
-let shUrl=localStorage.getItem('a_url')||'';
+// ══════════════════════════════════════════════════════════
+// ✅ วาง URL ของ Google Apps Script ที่นี่ (ครั้งเดียว ทุกเครื่องที่เปิดไฟล์นี้จะใช้งานได้ทันที)
+const HARDCODED_URL = ''; // <-- ใส่ URL ของคุณระหว่างเครื่องหมาย เช่น 'https://script.google.com/macros/s/xxx/exec'
+// ══════════════════════════════════════════════════════════
+let shUrl=localStorage.getItem('a_url')||HARDCODED_URL;
 let slots={s1:true,s2:true,s3:true};
 let wkOff=0;
 
@@ -613,6 +618,8 @@ function init(){
     document.getElementById('sh-test').style.display='';
     document.getElementById('sh-debug').style.display='';
     document.getElementById('conn-pill').style.display='';
+  } else if(HARDCODED_URL){
+    document.getElementById('sh-url').value=HARDCODED_URL;
   }
 }
 
@@ -942,11 +949,10 @@ function renderWeekly(){
 }
 
 function noTimeSel(en, field){
-  if(field==='in' && en.timeIn){
+  if(field==='in' && en.timeIn)
     return en.timeIn + (en.status==='late' ? '<span class="wlate">สาย</span>' : '');
-  }
   if(field==='out' && en.timeOut) return en.timeOut;
-  return '<span style="color:var(--mt);font-size:11px;">ไม่</span>';
+  return '<span style="color:#c53030;font-size:11px;font-weight:700;">ไม่</span>';
 }
 
 
@@ -1284,13 +1290,28 @@ select{display:none;}
   </div>
 </div>
 ${tableHTML}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-function savePDF(){
-  const tip=document.createElement('div');
-  tip.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a202c;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:999;font-family:Sarabun,sans-serif;';
-  tip.textContent='💡 ในหน้าพิมพ์ — เลือก "Save as PDF" หรือ "Microsoft Print to PDF" แล้วกด Save';
-  document.body.appendChild(tip);
-  setTimeout(()=>{tip.remove();window.print();},1800);
+async function savePDF(){
+  const btn=document.querySelector('.btn-pdf');
+  btn.textContent='⏳ กำลังสร้าง PDF...';
+  btn.disabled=true;
+  try{
+    const {jsPDF}=window.jspdf;
+    const el=document.querySelector('table');
+    const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#fff'});
+    const imgData=canvas.toDataURL('image/png');
+    const pw=canvas.width, ph=canvas.height;
+    const isLandscape=pw>ph;
+    const pdf=new jsPDF({orientation:isLandscape?'landscape':'portrait',unit:'px',format:[pw/2,ph/2]});
+    pdf.addImage(imgData,'PNG',0,0,pw/2,ph/2);
+    pdf.save(document.title+'.pdf');
+  }catch(e){
+    alert('เกิดข้อผิดพลาด: '+e.message);
+  }
+  btn.textContent='⬇ บันทึก PDF';
+  btn.disabled=false;
 }
 <\/script>
 </body></html>`;
@@ -1521,16 +1542,15 @@ function sw(id,el){
   document.getElementById('tab-'+id).classList.add('active');
   el.classList.add('active');
   if(id==='weekly'){
-    if(shUrl){
-      document.getElementById('wk-body').innerHTML='<tr><td colspan="32" style="text-align:center;padding:20px;color:#718096;">⏳ กำลังดึงข้อมูลจาก Google Sheets...</td></tr>';
-      refreshFromSheets().then(()=>renderWeekly());
-    } else renderWeekly();
+    // ดึงจาก Sheets เสมอ ไม่ว่าจะเปิดเครื่องไหน (Attendance + DayNotes)
+    document.getElementById('wk-body').innerHTML='<tr><td colspan="32" style="text-align:center;padding:20px;color:#718096;">⏳ กำลังดึงข้อมูลจาก Google Sheets...</td></tr>';
+    if(shUrl){ refreshFromSheets().then(()=>renderWeekly()).catch(()=>renderWeekly()); }
+    else renderWeekly();
   }
   if(id==='monthly'){
-    if(shUrl){
-      document.getElementById('mon-body').innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:#718096;">⏳ กำลังดึงข้อมูล...</td></tr>';
-      refreshFromSheets().then(()=>renderMonthly());
-    } else renderMonthly();
+    document.getElementById('mon-body').innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:#718096;">⏳ กำลังดึงข้อมูล...</td></tr>';
+    if(shUrl){ refreshFromSheets().then(()=>renderMonthly()).catch(()=>renderMonthly()); }
+    else renderMonthly();
   }
   if(id==='emps')renderEmps();
   if(id==='sheets')updateSyncCnt();
