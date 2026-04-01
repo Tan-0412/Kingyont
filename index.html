@@ -903,9 +903,23 @@ function renderToday(){
   let te,modeLabel='';
   if(lastAddedIds.length>0){
     te=lastAddedIds.map(id=>entries.find(e=>e.id===id)).filter(Boolean);
+    // เรียงตามวันที่ล่าสุดก่อน ถ้าวันที่เหมือนกันให้เรียงตามลำดับพนักงานใน Employees
+    te.sort((a,b)=>{
+      const dateDiff=b.date.localeCompare(a.date);
+      if(dateDiff!==0) return dateDiff;
+      const oa=(emps.find(e=>e.name===a.name)||{order:9999}).order;
+      const ob=(emps.find(e=>e.name===b.name)||{order:9999}).order;
+      return oa-ob;
+    });
     modeLabel=`(${te.length} รายการล่าสุดที่บันทึกในรอบนี้)`;
   } else {
-    te=[...entries.filter(e=>e.date===todayStr)].sort((a,b)=>b.id.localeCompare(a.id));
+    te=[...entries.filter(e=>e.date===todayStr)].sort((a,b)=>{
+      const dateDiff=b.date.localeCompare(a.date);
+      if(dateDiff!==0) return dateDiff;
+      const oa=(emps.find(e=>e.name===a.name)||{order:9999}).order;
+      const ob=(emps.find(e=>e.name===b.name)||{order:9999}).order;
+      return oa-ob;
+    });
     modeLabel=te.length>0?'(วันนี้)':'';
   }
 
