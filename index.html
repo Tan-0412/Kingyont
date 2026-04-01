@@ -4,10 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบเช็คเวลาทำงาน</title>
-  <link rel="manifest" href="/Kingyont/manifest.json">
+  <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#1D9E75">
-<link rel="apple-touch-icon" href="/Kingyont/icon-192.png">
-
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script>
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/Kingyont/sw.js', {
+  scope: '/Kingyont/'
+});
+  }
+</script>
   <!-- OG Image สำหรับ Line/Facebook/Twitter preview -->
 <meta property="og:title" content="ระบบเช็คเวลาทำงาน">
 <meta property="og:description" content="ระบบบันทึกเวลาเข้า-ออกงานพนักงาน">
@@ -1814,19 +1820,5 @@ function toast(msg,col='g'){
 
 init();
 </script>
-     ... javascript อื่น ๆ ของเว็บคุณ ...
-
- <script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/Kingyont/sw.js')
-      .then(() => console.log('SW registered'))
-      .catch(err => console.log('SW error', err));
-  });
-}
-</script>
-
-</body>
-</html>
 </body>
 </html>
