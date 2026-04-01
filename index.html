@@ -7,13 +7,6 @@
   <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#1D9E75">
 <link rel="apple-touch-icon" href="./icon-192.png">
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('/Kingyont/sw.js', {
-  scope: '/Kingyont/'
-});
-  }
-</script>
   <!-- OG Image สำหรับ Line/Facebook/Twitter preview -->
 <meta property="og:title" content="ระบบเช็คเวลาทำงาน">
 <meta property="og:description" content="ระบบบันทึกเวลาเข้า-ออกงานพนักงาน">
@@ -1819,6 +1812,26 @@ function toast(msg,col='g'){
 }
 
 init();
+</script>
+  <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/Kingyont/sw.js', {
+        scope: '/Kingyont/'
+      });
+
+      // ทำให้หน้าเว็บอยู่ใต้การควบคุม SW ทันที
+      if (!navigator.serviceWorker.controller) {
+        window.location.reload();
+      }
+
+      console.log("Service Worker ready");
+    } catch (err) {
+      console.log("SW error:", err);
+    }
+  });
+}
 </script>
 </body>
 </html>
