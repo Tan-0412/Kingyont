@@ -58,7 +58,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .bb2{background:var(--bl);color:#1a365d;border:1px solid #bee3f8;}
 .bsm{padding:4px 10px;font-size:11px;border-radius:6px;}
 .bxs{padding:3px 8px;font-size:11px;border-radius:5px;}
-.tw{overflow-x:auto;border:1px solid var(--bd);border-radius:10px;}
+.tw{overflow-x:hidden;border:1px solid var(--bd);border-radius:10px;}.tw-inner{transform-origin:top left;display:block;}
 .tbl{width:100%;border-collapse:collapse;font-size:12px;}
 .tbl th{background:#f8fafc;padding:7px 9px;text-align:center;font-weight:700;border-bottom:1px solid var(--bd);white-space:nowrap;color:var(--mt);font-size:10px;text-transform:uppercase;}
 .tbl td{padding:7px 9px;text-align:center;border-bottom:1px solid #f1f5f9;font-size:12px;white-space:nowrap;}
@@ -67,8 +67,8 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .tdi{color:var(--g);font-weight:700;}.tdo{color:var(--r);font-weight:700;}
 .tdok{color:var(--b);font-size:11px;}.tdno{color:var(--mt);font-size:11px;}
 /* weekly table */
-.wt{width:100%;border-collapse:collapse;font-size:11.5px;}
-.wt th,.wt td{border:1px solid #c8cdd5;padding:5px 7px;text-align:center;white-space:nowrap;}
+.wt{width:100%;border-collapse:collapse;font-size:10px;}
+.wt th,.wt td{border:1px solid #c8cdd5;padding:3px 5px;text-align:center;white-space:nowrap;}
 .wt thead tr:first-child th{font-size:12px;font-weight:700;padding:7px 8px;}
 .wh1{background:#1D9E75;color:#fff;}
 .whm{background:#FAEEDA;color:#744210;}.wht{background:#FBEAF0;color:#702459;}
@@ -258,7 +258,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
     <div class="dnlbl">📌 หมายเหตุรายวัน — วันหยุดบริษัท / ผู้ตรวจลาหยุด</div>
     <div class="dnrow" id="dn-row"></div>
   </div>
-  <div class="tw"><table class="wt" id="wk-tbl"><thead id="wk-head"></thead><tbody id="wk-body"></tbody></table></div>
+  <div class="tw" id="wk-outer"><div class="tw-inner" id="wk-inner"><table class="wt" id="wk-tbl"><thead id="wk-head"></thead><tbody id="wk-body"></tbody></table></div></div>
 </div>
 
 <!-- MONTHLY -->
@@ -1280,34 +1280,17 @@ select{display:none;}
   <h2>${title}</h2>
   <div class="btn-bar">
     <button class="print-btn btn-print" onclick="window.print()">🖨 พิมพ์</button>
-    <button class="print-btn btn-pdf" id="btn-pdf" onclick="savePDF()">⬇ บันทึก PDF</button>
+    <button class="print-btn btn-pdf" onclick="savePDF()">⬇ บันทึก PDF</button>
   </div>
 </div>
 ${tableHTML}
 <script>
 function savePDF(){
-  const btn=document.getElementById('btn-pdf');
-  btn.textContent='⏳ กำลังสร้าง...';btn.disabled=true;
-  const s1=document.createElement('script');
-  s1.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-  s1.onload=function(){
-    const s2=document.createElement('script');
-    s2.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    s2.onload=async function(){
-      try{
-        const {jsPDF}=window.jspdf;
-        const el=document.querySelector('table');
-        const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-        const iw=canvas.width,ih=canvas.height;
-        const pdf=new jsPDF({orientation:iw>ih?'landscape':'portrait',unit:'px',format:[iw/2,ih/2]});
-        pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,iw/2,ih/2);
-        pdf.save(document.title+'.pdf');
-      }catch(e){alert('ไม่สามารถสร้าง PDF: '+e.message);}
-      btn.textContent='⬇ บันทึก PDF';btn.disabled=false;
-    };
-    document.head.appendChild(s2);
-  };
-  document.head.appendChild(s1);
+  const tip=document.createElement('div');
+  tip.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a202c;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:999;font-family:Sarabun,sans-serif;';
+  tip.textContent='💡 ในหน้าพิมพ์ — เลือก "Save as PDF" หรือ "Microsoft Print to PDF" แล้วกด Save';
+  document.body.appendChild(tip);
+  setTimeout(()=>{tip.remove();window.print();},1800);
 }
 <\/script>
 </body></html>`;
@@ -1560,6 +1543,29 @@ function toast(msg,col='g'){
 }
 
 init();
+
+function scaleWeekly(){
+  const outer=document.getElementById('wk-outer');
+  const inner=document.getElementById('wk-inner');
+  if(!outer||!inner)return;
+  const tbl=document.getElementById('wk-tbl');
+  if(!tbl)return;
+  inner.style.transform='scale(1)';
+  inner.style.width='';
+  outer.style.height='';
+  const tw=tbl.scrollWidth;
+  const ow=outer.clientWidth;
+  if(tw>ow){
+    const s=ow/tw;
+    inner.style.transform='scale('+s+')';
+    inner.style.width=(100/s)+'%';
+    outer.style.height=(tbl.offsetHeight*s+8)+'px';
+  }
+}
+window.addEventListener('resize',scaleWeekly);
+const _rw=renderWeekly;
+renderWeekly=function(){_rw();setTimeout(scaleWeekly,120);};
+setTimeout(scaleWeekly,400);
 </script>
 </body>
 </html>
