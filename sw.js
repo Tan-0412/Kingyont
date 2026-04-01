@@ -1,10 +1,11 @@
-const CACHE = 'timeclock-v2';
+const CACHE = 'timeclock-v3';
 
 const ASSETS = [
   '/Kingyont/',
   '/Kingyont/index.html',
-  '/Kingyont/TimeRecord.png',
-  '/Kingyont/manifest.json'
+  '/Kingyont/manifest.json',
+  '/Kingyont/icon-192.png',
+  '/Kingyont/icon-512.png'
 ];
 
 // install
@@ -27,9 +28,15 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// fetch
+// fetch — network first, fallback to cache
 self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request).then(res => res || fetch(e.request))
+    fetch(e.request)
+      .then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
