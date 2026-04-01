@@ -285,12 +285,17 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
   </div>
 </div>
 
-<!-- EMPLOYEES — [FIX2] เพิ่มปุ่มแก้ไขและ modal แก้ไขพนักงาน -->
+<!-- EMPLOYEES -->
 <div id="tab-emps" class="panel">
+  <div style="background:#E1F5EE;border:1px solid #9AE6B4;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#085041;line-height:1.7;">
+    ☁️ <strong>ข้อมูลพนักงานเก็บใน Google Sheets (Sheet: Employees)</strong> — ทุกเครื่องที่เปิดระบบจะดึงชื่อจาก Sheets เสมอ ชื่อจึงตรงกัน 100%<br>
+    <span id="emps-sheet-st" style="color:#085041;"></span>
+  </div>
   <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;">
     <div class="fld" style="flex:1;max-width:220px;"><label>ชื่อพนักงานใหม่</label><input type="text" id="new-name" placeholder="เช่น สมชาย(ชาย)"></div>
     <div class="fld" style="max-width:150px;"><label>ตำแหน่ง</label><input type="text" id="new-pos" placeholder="พนักงาน"></div>
     <button class="btn bp" onclick="addEmp()">+ เพิ่ม</button>
+    <button class="btn bo bsm" onclick="syncEmpsFromSheets()">🔄 รีเฟรชจาก Sheets</button>
   </div>
   <div class="tw">
     <table class="tbl">
@@ -342,26 +347,28 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <button class="btn bo bsm" onclick="copyScript()">📋 คัดลอก</button>
     </div>
     <pre class="code" id="gs-code">// ═══════════════════════════════════════════════════
-//  ระบบเช็คเวลา — Google Apps Script v2 (CORS-free)
-//  - ใช้ doGet เพียงอย่างเดียว (ไม่มี doPost)
-//  - ส่งข้อมูลผ่าน URL parameter ไม่มี preflight
-//  - ทำงานได้จากไฟล์ HTML ในเครื่องโดยตรง
-//  - ข้อมูลเก็บใน Sheet ชื่อ "Attendance" และ "DayNotes"
-//    ภายในไฟล์ Google Sheets ที่ Deploy Script นี้
+//  ระบบเช็คเวลา — Google Apps Script v3
+//  - Sheet: Attendance, DayNotes, Employees
+//  - Employees เป็น source of truth ของชื่อพนักงาน
+//  - ทุกเครื่องดึงชื่อจาก Sheets → ชื่อตรงกันเสมอ
 // ═══════════════════════════════════════════════════
 const SHEET = 'Attendance';
 const NOTES = 'DayNotes';
+const EMPS  = 'Employees';
 
 function doGet(e) {
   const p = e.parameter;
   const action = p.action || '';
 
-  if (action === 'ping')     return ok({ pong: true });
-  if (action === 'getAll')   return ok({ rows: getRows() });
-  if (action === 'getNotes') return ok({ notes: getNotes() });
-  if (action === 'save')     return ok(saveEntry(p));
-  if (action === 'saveNote') return ok(saveNote(p));
-  if (action === 'delete')   return ok(deleteEntry(p.id));
+  if (action === 'ping')       return ok({ pong: true });
+  if (action === 'getAll')     return ok({ rows: getRows() });
+  if (action === 'getNotes')   return ok({ notes: getNotes() });
+  if (action === 'getEmps')    return ok({ emps: getEmps() });
+  if (action === 'save')       return ok(saveEntry(p));
+  if (action === 'saveNote')   return ok(saveNote(p));
+  if (action === 'saveEmp')    return ok(saveEmp(p));
+  if (action === 'deleteEmp')  return ok(deleteEmp(p.name));
+  if (action === 'delete')     return ok(deleteEntry(p.id));
 
   return ok({ status: 'ready' });
 }
@@ -488,6 +495,59 @@ function getNotes() {
     });
     return o;
   });
+}
+
+function getEmps() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(EMPS);
+  if (!sh) return [];
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return [];
+  const hdrs = data[0].map(String);
+  return data.slice(1).map(r => {
+    const o = {};
+    hdrs.forEach((h, i) => { o[h] = r[i] === null || r[i] === undefined ? '' : String(r[i]); });
+    return o;
+  });
+}
+
+function saveEmp(p) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(EMPS);
+  if (!sh) {
+    sh = ss.insertSheet(EMPS);
+    sh.appendRow(['ชื่อ', 'ตำแหน่ง', 'ลำดับ']);
+    sh.getRange(1, 1, 1, 3)
+      .setFontWeight('bold')
+      .setBackground('#378ADD')
+      .setFontColor('white');
+  }
+  const data = sh.getDataRange().getValues();
+  // ถ้ามีชื่อนี้อยู่แล้ว → update ตำแหน่งและลำดับ
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(p.name)) {
+      sh.getRange(i + 1, 2).setValue(p.pos || 'พนักงาน');
+      if (p.order) sh.getRange(i + 1, 3).setValue(Number(p.order));
+      return { success: true, action: 'updated' };
+    }
+  }
+  // ไม่มี → append ใหม่
+  sh.appendRow([p.name, p.pos || 'พนักงาน', Number(p.order) || (data.length)]);
+  return { success: true, action: 'added' };
+}
+
+function deleteEmp(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(EMPS);
+  if (!sh) return { success: false };
+  const data = sh.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][0]) === String(name)) {
+      sh.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { success: false };
 }
 
 function ok(data) {
@@ -618,6 +678,17 @@ function init(){
     document.getElementById('sh-test').style.display='';
     document.getElementById('sh-debug').style.display='';
     document.getElementById('conn-pill').style.display='';
+    // โหลด Employees จาก Sheets ตอนเปิดหน้า
+    callGS({action:'getEmps'}).then(de=>{
+      if(de.emps && de.emps.length>0){
+        emps=de.emps
+          .map(e=>({name:String(e['ชื่อ']||'').trim(),pos:String(e['ตำแหน่ง']||'พนักงาน'),order:Number(e['ลำดับ']||0)}))
+          .filter(e=>e.name)
+          .sort((a,b)=>a.order-b.order);
+        saveEmps();buildEmpSel();renderEmps();
+        console.log('[init] emps from Sheets:', emps.length);
+      }
+    }).catch(()=>{});
   } else if(HARDCODED_URL){
     document.getElementById('sh-url').value=HARDCODED_URL;
   }
@@ -635,13 +706,22 @@ function addEmp(){
   const p=document.getElementById('new-pos').value.trim()||'พนักงาน';
   if(!n)return;
   if(emps.find(e=>e.name===n)){toast('มีชื่อนี้แล้ว','r');return;}
-  emps.push({name:n,pos:p});saveEmps();buildEmpSel();renderEmps();
-  document.getElementById('new-name').value='';toast('เพิ่มพนักงานแล้ว');
+  const order=emps.length+1;
+  emps.push({name:n,pos:p,order});saveEmps();buildEmpSel();renderEmps();
+  document.getElementById('new-name').value='';
+  // บันทึกไปยัง Sheets ด้วย
+  if(shUrl){
+    callGS({action:'saveEmp',name:n,pos:p,order}).then(d=>{
+      toast(d.success?'เพิ่มพนักงานแล้ว ☁️ บันทึกใน Sheets':'เพิ่มในเครื่องแล้ว (Sheets offline)');
+    });
+  } else toast('เพิ่มพนักงานแล้ว');
 }
 function removeEmp(name){
-  if(!confirm(`ลบ "${name}"?`))return;
+  if(!confirm(`ลบ "${name}" และข้อมูลการเช็คเวลาทั้งหมดของพนักงานคนนี้?`))return;
   emps=emps.filter(e=>e.name!==name);entries=entries.filter(e=>e.name!==name);
   saveEmps();saveEnt();buildEmpSel();renderEmps();
+  if(shUrl) callGS({action:'deleteEmp',name}).then(()=>toast('ลบพนักงานแล้ว ☁️'));
+  else toast('ลบแล้ว (Sheets offline)');
 }
 
 // [FIX2] เปิด modal แก้ไขพนักงาน
@@ -688,25 +768,58 @@ function removeEmpByIdx(idx){
   saveEnt();
   openEditEmps();
 }
-function saveAllEmps(){
+async function saveAllEmps(){
   const rows=document.querySelectorAll('#edit-emp-list .edit-emp-row');
   const newEmps=[];
-  rows.forEach(r=>{
+  rows.forEach((r,i)=>{
     const name=r.querySelector('.emp-name-inp').value.trim();
     const pos=r.querySelector('.emp-pos-inp').value.trim()||'พนักงาน';
-    if(name) newEmps.push({name,pos});
+    if(name) newEmps.push({name,pos,order:i+1});
   });
   if(newEmps.length===0){toast('ต้องมีพนักงานอย่างน้อย 1 คน','r');return;}
   emps=newEmps;
   saveEmps();buildEmpSel();renderEmps();
   closeModal('edit-emp-modal');
-  toast('บันทึกข้อมูลพนักงานแล้ว ✓');
+  // sync ไปยัง Sheets ทุกคน
+  if(shUrl){
+    toast('กำลังบันทึกใน Sheets...');
+    let ok=0;
+    for(const e of newEmps){
+      const d=await callGS({action:'saveEmp',name:e.name,pos:e.pos,order:e.order});
+      if(d.success) ok++;
+    }
+    toast(`บันทึกพนักงาน ${ok}/${newEmps.length} คนใน Sheets ✓`);
+  } else {
+    toast('บันทึกข้อมูลพนักงานแล้ว ✓');
+  }
+}
+
+async function syncEmpsFromSheets(){
+  if(!shUrl){toast('กรุณาเชื่อมต่อ Google Sheets ก่อน','r');return;}
+  const st=document.getElementById('emps-sheet-st');
+  st.textContent='⏳ กำลังดึงรายชื่อจาก Sheets...';
+  try{
+    const de=await callGS({action:'getEmps'});
+    if(!de.emps||de.emps.length===0){
+      st.textContent='⚠️ ยังไม่มีพนักงานใน Sheets — กรุณาเพิ่มพนักงานด้านล่าง แล้วระบบจะบันทึกขึ้น Sheets อัตโนมัติ';
+      return;
+    }
+    emps=de.emps
+      .map(e=>({name:String(e['ชื่อ']||'').trim(),pos:String(e['ตำแหน่ง']||'พนักงาน'),order:Number(e['ลำดับ']||0)}))
+      .filter(e=>e.name)
+      .sort((a,b)=>a.order-b.order);
+    saveEmps();buildEmpSel();renderEmps();
+    st.textContent=`✅ โหลดจาก Sheets แล้ว ${emps.length} คน`;
+    toast('รีเฟรชรายชื่อพนักงานแล้ว ✓');
+  }catch(err){
+    st.textContent='❌ เชื่อมต่อไม่ได้ ใช้รายชื่อในเครื่องแทน';
+  }
 }
 
 function renderEmps(){
   document.getElementById('emp-body').innerHTML=emps.map((e,i)=>{
-    const cnt=entries.filter(x=>x.name===e.name).length;
-    const last=entries.filter(x=>x.name===e.name).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const cnt=entries.filter(x=>normN(x.name)===normN(e.name)).length;
+    const last=entries.filter(x=>normN(x.name)===normN(e.name)).sort((a,b)=>b.date.localeCompare(a.date))[0];
     return `<tr><td class="tdn">${i+1}</td><td class="tdl">${e.name}</td>
       <td style="text-align:left;color:var(--mt);">${e.pos}</td>
       <td><span class="bdg bb3">${cnt}</span></td>
@@ -904,7 +1017,7 @@ function renderWeekly(){
     let row=`<tr><td class="wnum">${idx+1}</td><td class="wname">${emp.name}</td>`;
     days.forEach(d=>{
       const ds2=dstr(d),dn=dayNotes[ds2]||{};
-      const en=entries.find(x=>x.name===emp.name&&x.date===ds2);
+      const en=entries.find(x=>normN(x.name)===normN(emp.name)&&x.date===ds2);
       if(dn.type==='holiday'){
         row+=`<td colspan="5" class="whol">🎌 ${dn.note||'วันหยุด'}</td>`;
       } else if(dn.type==='nocheck'){
@@ -995,7 +1108,7 @@ function renderMonthly(){
     <div class="sc"><div class="sl">⏰ มาสาย</div><div class="sn" style="color:var(--o);">${lt}</div></div>
     <div class="sc"><div class="sl">🌴 ลา</div><div class="sn" style="color:var(--p);">${lv}</div></div>`;
   document.getElementById('mon-body').innerHTML=emps.map((emp,i)=>{
-    const ee=me.filter(e=>e.name===emp.name);
+    const ee=me.filter(e=>normN(e.name)===normN(emp.name));
     const cs=s=>ee.filter(e=>e.status===s).length;
     const norm=ee.filter(e=>['normal','late'].includes(e.status)).length;
     const ins=ee.filter(e=>e.timeIn&&/^\d{1,2}:\d{2}$/.test(e.timeIn)).map(e=>e.timeIn);
@@ -1064,7 +1177,7 @@ function callGS(params){
     .catch(err=>{console.warn('GS:',err);return {};});
 }
 
-function connectSheets(){
+async function connectSheets(){
   const url=document.getElementById('sh-url').value.trim();
   if(!url.includes('script.google.com')){
     document.getElementById('sh-st').innerHTML='<span style="color:var(--r);">❌ URL ไม่ถูกต้อง ต้องเป็น script.google.com</span>';return;
@@ -1072,6 +1185,7 @@ function connectSheets(){
   shUrl=url;localStorage.setItem('a_url',url);
   document.getElementById('sh-st').innerHTML='<span style="color:var(--g);">✅ บันทึก URL แล้ว — กด 🧪 ทดสอบ เพื่อยืนยัน</span>';
   document.getElementById('sh-test').style.display='';
+  document.getElementById('sh-debug').style.display='';
   document.getElementById('conn-pill').style.display='';
 }
 
@@ -1112,6 +1226,15 @@ async function testConn(){
     // โหลดข้อมูลเข้า memory ด้วยเลย
     await refreshFromSheets();
     renderWeekly();
+    // ถ้า Sheets ยังไม่มีพนักงาน แต่เครื่องมี → ย้ายขึ้น Sheets
+    const de=await callGS({action:'getEmps'});
+    if((!de.emps||de.emps.length===0) && emps.length>0){
+      st.innerHTML+='<br><span style="color:var(--o);">⏳ กำลังย้ายข้อมูลพนักงานขึ้น Sheets...</span>';
+      for(let i=0;i<emps.length;i++){
+        await callGS({action:'saveEmp',name:emps[i].name,pos:emps[i].pos||'พนักงาน',order:i+1});
+      }
+      st.innerHTML+='<br><span style="color:var(--g);">✅ ย้ายพนักงาน '+emps.length+' คนขึ้น Sheets แล้ว!</span>';
+    }
   }catch(e){
     st.innerHTML=`<span style="color:var(--r);">❌ เชื่อมต่อไม่ได้: ${e.message}<br>ตรวจสอบว่า Who has access = <strong>Anyone</strong> และกด Allow ตอน Authorize</span>`;
   }
@@ -1437,14 +1560,44 @@ function getField(obj, ...keys){
   return '';
 }
 
+// normalize ชื่อพนักงาน: ตัดช่องว่างหน้า/หลัง และช่องว่างหน้าวงเล็บ
+// เช่น "มิลินา (มิ้น)" → "มิลินา(มิ้น)" และ "มิลินา(มิ้น)" → "มิลินา(มิ้น)"
+function normN(name){ return String(name||'').trim().replace(/\s*\(/g,'(').replace(/\)\s*/g,')'); }
+
+// จับคู่ชื่อจาก Sheets กับชื่อในระบบ (tolerant ต่อช่องว่าง)
+function matchEmpName(sheetName){
+  const sn = normN(sheetName);
+  // หาตรงๆ ก่อน
+  const exact = emps.find(e => e.name === sheetName);
+  if(exact) return exact.name;
+  // หาโดย normalize
+  const fuzzy = emps.find(e => normN(e.name) === sn);
+  if(fuzzy) return fuzzy.name;
+  // คืนชื่อดั้งเดิมจาก Sheet ถ้าหาไม่เจอ
+  return sheetName;
+}
+
 // ดึงข้อมูลจาก Sheets — Sheets คือ source of truth เสมอ
-// ล้าง entries ที่ดึงมาจาก Sheets แล้ว rebuild ใหม่ เพื่อป้องกันวันที่เลื่อน/ซ้ำ
+// รวม Attendance, DayNotes, และ Employees
 async function refreshFromSheets(){
   try{
-    const[d,dn]=await Promise.all([
+    const[d,dn,de]=await Promise.all([
       callGS({action:'getAll'}),
-      callGS({action:'getNotes'})
+      callGS({action:'getNotes'}),
+      callGS({action:'getEmps'})
     ]);
+
+    // โหลด Employees จาก Sheets ก่อน (source of truth)
+    if(de.emps && de.emps.length>0){
+      const sheetsEmps = de.emps
+        .map(e=>({name:String(e['ชื่อ']||'').trim(), pos:String(e['ตำแหน่ง']||'พนักงาน'), order:Number(e['ลำดับ']||0)}))
+        .filter(e=>e.name)
+        .sort((a,b)=>a.order-b.order);
+      emps = sheetsEmps;
+      saveEmps();
+      buildEmpSel();
+      console.log('[Sheets] emps loaded:', emps.length);
+    }
 
     if(d.rows && d.rows.length>0){
       // log ดูรูปแบบจริงของ row แรก เพื่อ debug
@@ -1454,7 +1607,7 @@ async function refreshFromSheets(){
       // แปลง rows จาก Sheets เป็น entries
       const sheetsEntries=[];
       d.rows.forEach(r=>{
-        const name = getField(r,'ชื่อพนักงาน','name','ชื่อ','Name');
+        const name = matchEmpName(getField(r,'ชื่อพนักงาน','name','ชื่อ','Name'));
         const rawDate = getField(r,'วันที่','date','Date','วันที่ทำงาน');
         const date = parseSheetDate(rawDate);
         if(!name||!date||date.length<8) return;
@@ -1552,7 +1705,13 @@ function sw(id,el){
     if(shUrl){ refreshFromSheets().then(()=>renderMonthly()).catch(()=>renderMonthly()); }
     else renderMonthly();
   }
-  if(id==='emps')renderEmps();
+  if(id==='emps'){
+    renderEmps();
+    // แสดงสถานะ Sheets
+    const st=document.getElementById('emps-sheet-st');
+    if(shUrl) st.textContent=`✅ เชื่อมต่อ Sheets แล้ว — มีพนักงาน ${emps.length} คน (ดึงจาก Sheets ทุกครั้งที่เปิดระบบ)`;
+    else st.textContent='⚠️ ยังไม่ได้เชื่อมต่อ Google Sheets — ข้อมูลพนักงานเก็บในเครื่องเท่านั้น';
+  }
   if(id==='sheets')updateSyncCnt();
 }
 
