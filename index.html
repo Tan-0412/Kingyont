@@ -703,8 +703,13 @@ function init(){
     document.getElementById('conn-pill').style.display='';
     callGS({action:'getEmps'}).then(de=>{
       if(de.emps&&de.emps.length>0){
-        emps=de.emps.map(e=>({name:String(e['ชื่อ']||'').trim(),pos:String(e['ตำแหน่ง']||'พนักงาน'),order:Number(e['ลำดับ']||0)}))
-          .filter(e=>e.name).sort((a,b)=>a.order-b.order);
+        emps=de.emps.map((e,i)=>({
+          empId: String(e['รหัสพนักงาน']||'').trim(),
+          name:  String(e['ชื่อ1']||e['ชื่อ']||'').trim(),
+          pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
+          dept:  String(e['ฝ่าย']||'').trim(),
+          order: i
+        })).filter(e=>e.empId&&e.name);
         saveEmps();buildEmpSel();
       }
     }).catch(()=>{});
@@ -716,9 +721,14 @@ function init(){
 function buildEmpSel(){
   const s=document.getElementById('ep-sel'),v=s.value;
   s.innerHTML='<option value="">-- เลือกพนักงาน --</option>';
-  emps.forEach(e=>s.innerHTML+=`<option value="${e.name}">${e.name}</option>`);
-  s.value=v;
+  emps.forEach(e=>s.innerHTML+=`<option value="${e.empId}">${e.name} (${e.empId})</option>`);
+  // คืนค่าเดิมถ้ายังมีอยู่
+  if(v && [...s.options].find(o=>o.value===v)) s.value=v;
 }
+// หา emp object จาก empId
+function findEmp(empId){ return emps.find(e=>e.empId===empId)||null; }
+// หา emp object จาก ชื่อ (backward compat)
+function findEmpByName(name){ return emps.find(e=>e.name===name)||null; }
 
 function addEmp(){
   const n=document.getElementById('new-name').value.trim();
@@ -854,37 +864,49 @@ function clearForm(){
   document.querySelectorAll('.slt').forEach(b=>{b.classList.add('on');b.disabled=false;});
 }
 
-function addEntry(){
-  const name=document.getElementById('ep-sel').value;
+async function addEntry(){
+  const empId=document.getElementById('ep-sel').value;
   const date=document.getElementById('ep-date').value;
-  if(!name||!date){toast('เลือกพนักงานและวันที่ก่อน','r');return;}
+  if(!empId||!date){toast('เลือกพนักงานและวันที่ก่อน','r');return;}
   if(new Date(date+'T12:00:00').getDay()===0){toast('วันอาทิตย์ไม่ทำการ','r');return;}
+  const emp=findEmp(empId);
+  const name1=emp?emp.name:empId;
   const stat=document.getElementById('ep-stat').value;
   const notime=['absent','leave','sick'].includes(stat);
-  const ti=document.getElementById('ep-in').value;
-  const to_=document.getElementById('ep-out').value;
-  const id=`${date}_${name}_${Date.now()}`;
-  const entry={id,name,date,status:stat,
+
+  // auto fill IN/OUT จาก Record sheet
+  let ti=document.getElementById('ep-in').value;
+  let to_=document.getElementById('ep-out').value;
+  if(!notime && shUrl){
+    const rec=await getRecordForEmp(empId,date);
+    if(rec){ ti=rec.timeIn||ti; to_=rec.timeOut||to_; }
+  }
+
+  const id=`${date}_${empId}_${Date.now()}`;
+  const entry={id,empId,name:name1,date,status:stat,
     timeIn:notime?'':ti,timeOut:notime?'':to_,
     slot1:notime?'-':(slots.s1?'อยู่':'ไม่'),
     slot2:notime?'-':(slots.s2?'อยู่':'ไม่'),
     slot3:notime?'-':(slots.s3?'อยู่':'ไม่'),
   };
-  // ลบรายการซ้ำชื่อ+วันที่เดิม แล้วเก็บ id ใหม่
-  const oldEntry=entries.find(e=>e.name===name&&e.date===date);
-  if(oldEntry){
-    lastAddedIds=lastAddedIds.filter(x=>x!==oldEntry.id);
-  }
-  entries=entries.filter(e=>!(e.name===name&&e.date===date));
+  const oldEntry=entries.find(e=>e.empId===empId&&e.date===date);
+  if(oldEntry) lastAddedIds=lastAddedIds.filter(x=>x!==oldEntry.id);
+  entries=entries.filter(e=>!(e.empId===empId&&e.date===date));
   entries.push(entry);saveEnt();
-
-  // [FIX3] เพิ่ม id ใหม่เข้า lastAddedIds (ล่าสุดอยู่หน้าสุด) ไม่เกิน 50 รายการ
   lastAddedIds=[id,...lastAddedIds.slice(0,49)];
   saveLastIds();
-
   renderToday();renderAlerts();clearForm();
   toast('บันทึกแล้ว ✓');
   if(shUrl) syncEntry(entry);
+}
+
+// ดึง Record ของ empId+date จาก Sheets
+async function getRecordForEmp(empId, date){
+  try{
+    const d=await callGS({action:'getRecords',date});
+    if(!d.records) return null;
+    return d.records.find(r=>r.empId===empId&&r.date===date)||null;
+  }catch(e){ return null; }
 }
 
 function delEntry(id){
@@ -893,7 +915,7 @@ function delEntry(id){
   // ลบออกจาก lastAddedIds ด้วย
   lastAddedIds=lastAddedIds.filter(x=>x!==id);saveLastIds();
   renderToday();renderAlerts();
-  if(shUrl&&e) callGS({action:'delete',id:e.id});
+  if(shUrl&&e) callGS({action:'delete',id:e.id,empId:e.empId||e.name});
 }
 
 function renderToday(){
@@ -937,7 +959,7 @@ function renderRow(e, i, editMode=false){
 
   if(editMode){
     // โหมดแก้ไข — แสดง input/select แทน
-    const empOpts=emps.map(emp=>`<option value="${emp.name}"${emp.name===e.name?' selected':''}>${emp.name}</option>`).join('');
+    const empOpts=emps.map(emp=>`<option value="${emp.empId}"${emp.empId===e.empId?' selected':''}>${emp.name} (${emp.empId})</option>`).join('');
     const s1on=e.slot1==='อยู่';const s2on=e.slot2==='อยู่';const s3on=e.slot3==='อยู่';
     return `<tr id="row-${e.id}" style="background:#f0fdf9;">
       <td class="tdn">${i+1}</td>
@@ -965,16 +987,19 @@ function renderRow(e, i, editMode=false){
   // โหมดดูปกติ
   const isDraft = e._draft && !e.timeIn && !e.timeOut;
   const rowStyle = isDraft ? 'background:#f8fafc;color:#a0aec0;' : '';
+  const empBadge = e.empId ? `<span style="font-size:10px;background:#e6f1fb;color:#1a365d;padding:1px 5px;border-radius:6px;margin-left:3px;">${e.empId}</span>` : '';
   const draftBadge = isDraft ? '<span style="font-size:10px;background:#e2e8f0;color:#718096;padding:1px 6px;border-radius:8px;margin-left:4px;">รอกรอก</span>' : '';
+  const inStr = e.timeIn ? e.timeIn.substring(0,5) : '—';
+  const outStr = e.timeOut ? e.timeOut.substring(0,5) : '—';
   return `<tr id="row-${e.id}" style="${rowStyle}">
     <td class="tdn">${i+1}</td>
-    <td class="tdl" style="${isDraft?'color:#a0aec0;':''}">${e.name}${draftBadge}</td>
+    <td class="tdl" style="${isDraft?'color:#a0aec0;':''}">${e.name}${empBadge}${draftBadge}</td>
     <td style="font-size:11px;color:${isDraft?'#cbd5e0':'var(--mt)'};">${fmtDate(e.date)}</td>
-    <td class="${isDraft?'':'tdi'}" style="${isDraft?'color:#cbd5e0;':''}">${e.timeIn||'—'}</td>
+    <td class="${isDraft?'':'tdi'}" style="${isDraft?'color:#cbd5e0;':''}">${inStr}</td>
     <td class="${isDraft?'':''}${!isDraft&&e.slot1==='อยู่'?'tdok':'tdno'}">${e.slot1||'—'}</td>
     <td class="${!isDraft&&e.slot2==='อยู่'?'tdok':'tdno'}">${e.slot2||'—'}</td>
     <td class="${!isDraft&&e.slot3==='อยู่'?'tdok':'tdno'}">${e.slot3||'—'}</td>
-    <td class="${isDraft?'':'tdo'}" style="${isDraft?'color:#cbd5e0;':''}">${e.timeOut||'—'}</td>
+    <td class="${isDraft?'':'tdo'}" style="${isDraft?'color:#cbd5e0;':''}">${outStr}</td>
     <td><span class="bdg ${isDraft?'':''}${SC[e.status]}" style="${isDraft?'opacity:.5;':''}">${SM[e.status]}</span></td>
     <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
       <button class="btn-edit" onclick="startEdit('${id}')">✏️ แก้ไข</button>
@@ -1003,7 +1028,9 @@ function togEdSlot(id,slot){
 function saveEdit(id){
   const idx=entries.findIndex(x=>x.id===id);
   if(idx<0) return;
-  const name=document.getElementById('ed-name-'+id)?.value||entries[idx].name;
+  const empId=document.getElementById('ed-name-'+id)?.value||entries[idx].empId||entries[idx].name;
+  const emp=findEmp(empId);
+  const name=emp?emp.name:(entries[idx].name||empId);
   const date=document.getElementById('ed-date-'+id)?.value||entries[idx].date;
   const timeIn=document.getElementById('ed-in-'+id)?.value||'';
   const timeOut=document.getElementById('ed-out-'+id)?.value||'';
@@ -1013,7 +1040,7 @@ function saveEdit(id){
   const s3=document.getElementById('eds3-'+id)?.classList.contains('on');
   const notime=['absent','leave','sick'].includes(status);
   entries[idx]={...entries[idx],
-    name, date,
+    empId, name, date,
     timeIn: notime?'':timeIn,
     timeOut: notime?'':timeOut,
     status,
@@ -1041,17 +1068,28 @@ async function bulkCreateAll(){
   const date = document.getElementById('bulk-date').value || todayStr;
   closeModal('bulk-modal');
   if(new Date(date+'T12:00:00').getDay()===0){toast('วันอาทิตย์ไม่ทำการ','r');return;}
-  const existing = entries.filter(e=>e.date===date).map(e=>e.name);
-  const toCreate = emps.filter(emp=>!existing.includes(emp.name));
+
+  // ดึง Record ทั้งวันนั้นจาก Sheets ทีเดียว
+  let dayRecords=[];
+  if(shUrl){
+    try{ const d=await callGS({action:'getRecords',date}); dayRecords=d.records||[]; }catch(e){}
+  }
+
+  const existing=entries.filter(e=>e.date===date).map(e=>e.empId||e.name);
+  const toCreate=emps.filter(emp=>!existing.includes(emp.empId));
   if(toCreate.length===0){toast('มีรายการครบทุกคนแล้ว ✓');return;}
 
   const newEntries=[];
   toCreate.forEach(emp=>{
-    const id=`${date}_${emp.name}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-    const entry={id, name:emp.name, date,
-      timeIn:'', timeOut:'', status:'normal',
+    const rec=dayRecords.find(r=>r.empId===emp.empId&&r.date===date);
+    const id=`${date}_${emp.empId}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+    const entry={
+      id, empId:emp.empId, name:emp.name, date,
+      timeIn:  rec?rec.timeIn:'',
+      timeOut: rec?rec.timeOut:'',
+      status:'normal',
       slot1:'อยู่', slot2:'อยู่', slot3:'อยู่',
-      _draft: true
+      _draft: !rec  // ถ้าไม่มี Record = รอกรอก
     };
     entries.push(entry);
     lastAddedIds=[id,...lastAddedIds];
@@ -1060,12 +1098,11 @@ async function bulkCreateAll(){
 
   saveEnt(); saveLastIds();
   renderToday(); renderAlerts();
-  toast(`✅ สร้างรายการ ${newEntries.length} คนแล้ว — กด ✏️ แก้ไขทีละคนได้เลย`);
+  const hasScan=newEntries.filter(e=>e.timeIn).length;
+  toast(`✅ สร้าง ${newEntries.length} คน (มีเวลาจาก Record ${hasScan} คน)`);
 
   if(shUrl){
-    for(const entry of newEntries){
-      await syncEntry(entry);
-    }
+    for(const entry of newEntries){ await syncEntry(entry); }
     toast(`☁️ Sync ${newEntries.length} คนขึ้น Sheets แล้ว`);
   }
 }
@@ -1074,8 +1111,8 @@ function renderAlerts(){
   const lates=entries.filter(e=>e.date===todayStr&&e.status==='late');
   const abs=entries.filter(e=>e.date===todayStr&&e.status==='absent');
   let h='';
-  if(lates.length) h+=`<div class="alrt aly">⏰ <strong>มาสาย ${lates.length} คนวันนี้:</strong> ${lates.map(e=>e.name).join(', ')}</div>`;
-  if(abs.length) h+=`<div class="alrt alr">❌ <strong>ขาดงาน ${abs.length} คนวันนี้:</strong> ${abs.map(e=>e.name).join(', ')}</div>`;
+  if(lates.length) h+=`<div class="alrt aly">⏰ <strong>มาสาย ${lates.length} คนวันนี้:</strong> ${lates.map(e=>e.name||(e.empId||'')).join(', ')}</div>`;
+  if(abs.length) h+=`<div class="alrt alr">❌ <strong>ขาดงาน ${abs.length} คนวันนี้:</strong> ${abs.map(e=>e.name||(e.empId||'')).join(', ')}</div>`;
   document.getElementById('alert-box').innerHTML=h;
   const tot=lates.length+abs.length;
   document.getElementById('notif-btn').style.display=tot?'':'none';
@@ -1157,7 +1194,7 @@ function renderWeekly(){
     let row=`<tr><td class="wnum">${idx+1}</td><td class="wname">${emp.name}</td>`;
     days.forEach(d=>{
       const ds2=dstr(d),dn=dayNotes[ds2]||{};
-      const en=entries.find(x=>normN(x.name)===normN(emp.name)&&x.date===ds2);
+      const en=entries.find(x=>(x.empId===emp.empId||(x.empId===undefined&&normN(x.name)===normN(emp.name)))&&x.date===ds2);
       if(dn.type==='holiday'){
         row+=`<td colspan="5" class="whol">🎌 ${dn.note||'วันหยุด'}</td>`;
       } else if(dn.type==='nocheck'){
@@ -1168,7 +1205,7 @@ function renderWeekly(){
         row+=`<td colspan="5" style="background:#fffbf0;padding:4px 6px;">
           <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
             <select id="${uid}" style="font-size:10px;padding:2px 4px;border-radius:5px;border:1px solid #e2d9c5;color:#744210;background:#fffbf0;font-family:inherit;"
-              onchange="quickEntry('${emp.name}','${ds2}',this.value)">
+              onchange="quickEntry('${emp.empId}','${ds2}',this.value)">
               <option value="">— ไม่มีข้อมูล</option>
               <option value="absent">❌ ขาดงาน</option>
               <option value="leave">🌴 ลาพักร้อน</option>
@@ -1210,15 +1247,16 @@ function noTimeSel(en, field){
 
 
 
-function quickEntry(name, date, status){
+function quickEntry(empIdOrName, date, status){
   if(!status) return;
-  const id=`${date}_${name}_quick_${Date.now()}`;
-  const entry={id,name,date,status,timeIn:'',timeOut:'',slot1:'-',slot2:'-',slot3:'-'};
-  entries=entries.filter(e=>!(e.name===name&&e.date===date));
+  const emp=findEmp(empIdOrName)||findEmpByName(empIdOrName)||{empId:empIdOrName,name:empIdOrName,pos:'พนักงาน'};
+  const empId=emp.empId||empIdOrName;
+  const name=emp.name||empIdOrName;
+  const id=`${date}_${empId}_quick_${Date.now()}`;
+  const entry={id,empId,name,date,status,timeIn:'',timeOut:'',slot1:'-',slot2:'-',slot3:'-'};
+  entries=entries.filter(e=>!((e.empId||e.name)===empId&&e.date===date));
   entries.push(entry); saveEnt();
-  if(shUrl) callGS({action:'save',id:entry.id,name:entry.name,date:entry.date,
-    timeIn:'',timeOut:'',status:entry.status,slot1:'-',slot2:'-',slot3:'-'})
-    .then(()=>toast(`บันทึก ${name} (${status}) วันที่ ${date} แล้ว ✓`));
+  if(shUrl) syncEntry(entry).then(()=>toast(`บันทึก ${name} (${status}) แล้ว ✓`));
   else toast(`บันทึก ${name} (${status}) แล้ว ✓`);
   renderWeekly();
 }
@@ -1377,10 +1415,18 @@ async function testConn(){
 
 function syncEntry(entry){
   document.getElementById('sync-st').innerHTML='⏳ กำลัง sync...';
-  callGS({action:'save',id:entry.id,name:entry.name,date:entry.date,
-    timeIn:entry.timeIn||'',timeOut:entry.timeOut||'',status:entry.status,
-    slot1:entry.slot1||'',slot2:entry.slot2||'',slot3:entry.slot3||''})
-  .then(d=>{
+  callGS({action:'save',
+    id:      entry.id,
+    empId:   entry.empId||entry.name,
+    name1:   entry.name||'',
+    date:    entry.date,
+    timeIn:  entry.timeIn||'',
+    timeOut: entry.timeOut||'',
+    status:  entry.status,
+    slot1:   entry.slot1||'',
+    slot2:   entry.slot2||'',
+    slot3:   entry.slot3||''
+  }).then(d=>{
     document.getElementById('sync-st').innerHTML=d.success
       ?'<span style="color:var(--g);">☁️ Sync แล้ว ✓</span>'
       :'<span style="color:var(--r);">⚠️ Sync ล้มเหลว ข้อมูลยังอยู่ในเครื่อง</span>';
@@ -1398,14 +1444,14 @@ async function syncAll(){
   const sheetKeys=new Set();
   if(existing.rows){
     existing.rows.forEach(r=>{
-      const name=String(r['ชื่อพนักงาน']||'');
+      const empId=String(r['รหัสพนักงาน']||r['ชื่อพนักงาน']||'');
       const date=String(r['วันที่']||'').substring(0,10);
-      if(name&&date) sheetKeys.add(`${date}|${name}`);
+      if(empId&&date) sheetKeys.add(`${date}|${empId}`);
     });
   }
 
   // กรองเฉพาะรายการที่ยังไม่มีใน Sheets
-  const toSync=entries.filter(e=>!sheetKeys.has(`${e.date}|${e.name}`));
+  const toSync=entries.filter(e=>!sheetKeys.has(`${e.date}|${e.empId||e.name}`));
 
   if(toSync.length===0){
     st.innerHTML=`<span style="color:var(--g);">✅ ข้อมูลทั้งหมด ${entries.length} รายการอยู่ใน Sheets แล้ว ไม่มีรายการใหม่ที่ต้อง Sync</span>`;
@@ -1418,7 +1464,7 @@ async function syncAll(){
   for(let i=0;i<toSync.length;i++){
     const e=toSync[i];
     st.textContent=`กำลัง Sync ${i+1}/${toSync.length}... (${e.name} ${e.date})`;
-    const d=await callGS({action:'save',id:e.id,name:e.name,date:e.date,
+    const d=await callGS({action:'save',id:e.id,empId:e.empId||e.name,name1:e.name||'',date:e.date,
       timeIn:e.timeIn||'',timeOut:e.timeOut||'',status:e.status,
       slot1:e.slot1||'',slot2:e.slot2||'',slot3:e.slot3||''});
     if(d.success) ok++; else fail++;
@@ -1460,10 +1506,10 @@ async function loadAll(){
   if(!d.rows){st.innerHTML='<span style="color:var(--r);">❌ ดึงไม่ได้ ตรวจสอบการเชื่อมต่อ</span>';return;}
   let added=0;
   d.rows.forEach(r=>{
-    const name=String(r['ชื่อพนักงาน']||''),date=String(r['วันที่']||'').substring(0,10);
-    if(!name||!date)return;
-    if(!entries.find(e=>e.name===name&&e.date===date)){
-      entries.push({id:String(r['ID']||`${date}_${name}`),name,date,
+    const empId=String(r['รหัสพนักงาน']||''),name1=String(r['ชื่อ1']||r['ชื่อพนักงาน']||''),date=String(r['วันที่']||'').substring(0,10);
+    if(!empId||!date)return;
+    if(!entries.find(e=>(e.empId||e.name)===empId&&e.date===date)){
+      entries.push({id:String(r['ID']||`${date}_${empId}`),empId,name:name1,date,
         timeIn:parseSheetTime(r['เวลาIN']||''),timeOut:parseSheetTime(r['เวลาOUT']||''),
         status:String(r['สถานะ']||'normal'),
         slot1:String(r['9-11']||''),slot2:String(r['13-15']||''),slot3:String(r['15-17']||'')});
@@ -1713,43 +1759,40 @@ async function refreshFromSheets(){
       callGS({action:'getEmps'})
     ]);
     if(de.emps&&de.emps.length>0){
-      emps=de.emps.map(e=>({name:String(e['ชื่อ']||'').trim(),pos:String(e['ตำแหน่ง']||'พนักงาน'),order:Number(e['ลำดับ']||0)}))
-        .filter(e=>e.name).sort((a,b)=>a.order-b.order);
+      emps=de.emps.map((e,i)=>({
+        empId: String(e['รหัสพนักงาน']||'').trim(),
+        name:  String(e['ชื่อ1']||e['ชื่อ']||'').trim(),
+        pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
+        dept:  String(e['ฝ่าย']||'').trim(),
+        order: i
+      })).filter(e=>e.empId&&e.name);
       saveEmps();buildEmpSel();
     }
 
     if(d.rows && d.rows.length>0){
-      // log ดูรูปแบบจริงของ row แรก เพื่อ debug
       console.log('[Sheets] sample row:', JSON.stringify(d.rows[0]));
-      console.log('[Sheets] total rows:', d.rows.length);
-
-      // แปลง rows จาก Sheets เป็น entries
       const sheetsEntries=[];
       d.rows.forEach(r=>{
-        const name = matchEmpName(getField(r,'ชื่อพนักงาน','name','ชื่อ','Name'));
-        const rawDate = getField(r,'วันที่','date','Date','วันที่ทำงาน');
-        const date = parseSheetDate(rawDate);
-        if(!name||!date||date.length<8) return;
+        const empId  = getField(r,'รหัสพนักงาน','empId');
+        const name1  = getField(r,'ชื่อ1','name','ชื่อ');
+        const rawDate= getField(r,'วันที่','date');
+        const date   = parseSheetDate(rawDate);
+        if(!empId||!date||date.length<8) return;
         sheetsEntries.push({
-          id: getField(r,'ID','id') || `${date}_${name}`,
-          name, date,
-          timeIn:  parseSheetTime(getField(r,'เวลาIN','เวลาเข้า','IN','timeIn','in')),
-          timeOut: parseSheetTime(getField(r,'เวลาOUT','เวลาออก','OUT','timeOut','out')),
-          status:  getField(r,'สถานะ','status','Status') || 'normal',
-          slot1:   getField(r,'9-11','slot1','9-11น'),
-          slot2:   getField(r,'13-15','slot2','13-15น'),
-          slot3:   getField(r,'15-17','slot3','15-17น'),
+          id:      getField(r,'ID','id') || `${date}_${empId}`,
+          empId, name:name1, date,
+          timeIn:  parseSheetTime(getField(r,'เวลาIN','IN')),
+          timeOut: parseSheetTime(getField(r,'เวลาOUT','OUT')),
+          status:  getField(r,'สถานะ','status') || 'normal',
+          slot1:   getField(r,'9-11'),
+          slot2:   getField(r,'13-15'),
+          slot3:   getField(r,'15-17'),
           _fromSheets: true,
         });
       });
-
-      // สร้าง set ของ name+date ที่อยู่ใน Sheets
-      const sheetsKeys=new Set(sheetsEntries.map(e=>`${e.name}__${e.date}`));
-      // เก็บเฉพาะ entries ที่บันทึกในเครื่องเท่านั้น (ไม่มีใน Sheets) + ทับด้วย Sheets
-      const localOnly=entries.filter(e=>!e._fromSheets && !sheetsKeys.has(`${e.name}__${e.date}`));
-      entries=[...sheetsEntries, ...localOnly];
-
-      console.log(`[Sheets] sheetsEntries=${sheetsEntries.length}, localOnly=${localOnly.length}, total=${entries.length}`);
+      const sheetsKeys=new Set(sheetsEntries.map(e=>`${e.empId}__${e.date}`));
+      const localOnly=entries.filter(e=>!e._fromSheets && !sheetsKeys.has(`${(e.empId||e.name)}__${e.date}`));
+      entries=[...sheetsEntries,...localOnly];
       saveEnt();
     } else {
       console.warn('[Sheets] getAll returned no rows:', d);
