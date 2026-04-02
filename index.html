@@ -708,8 +708,9 @@ function init(){
           name:  String(e['ชื่อ1']||e['ชื่อ']||'').trim(),
           pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
           dept:  String(e['ฝ่าย']||'').trim(),
-          order: i
-        })).filter(e=>e.empId&&e.name);
+          order: Number(e['ลำดับที่']||e['ลำดับ']||i+1)
+        })).filter(e=>e.empId&&e.name)
+           .sort((a,b)=>a.order-b.order);
         saveEmps();buildEmpSel();
       }
     }).catch(()=>{});
@@ -929,8 +930,8 @@ function renderToday(){
     te.sort((a,b)=>{
       const dateDiff=b.date.localeCompare(a.date);
       if(dateDiff!==0) return dateDiff;
-      const oa=(emps.find(e=>e.name===a.name)||{order:9999}).order;
-      const ob=(emps.find(e=>e.name===b.name)||{order:9999}).order;
+      const oa=(emps.find(e=>e.empId===(a.empId||'')||e.name===a.name)||{order:9999}).order;
+      const ob=(emps.find(e=>e.empId===(b.empId||'')||e.name===b.name)||{order:9999}).order;
       return oa-ob;
     });
     modeLabel=`(${te.length} รายการล่าสุดที่บันทึกในรอบนี้)`;
@@ -938,8 +939,8 @@ function renderToday(){
     te=[...entries.filter(e=>e.date===todayStr)].sort((a,b)=>{
       const dateDiff=b.date.localeCompare(a.date);
       if(dateDiff!==0) return dateDiff;
-      const oa=(emps.find(e=>e.name===a.name)||{order:9999}).order;
-      const ob=(emps.find(e=>e.name===b.name)||{order:9999}).order;
+      const oa=(emps.find(e=>e.empId===(a.empId||'')||e.name===a.name)||{order:9999}).order;
+      const ob=(emps.find(e=>e.empId===(b.empId||'')||e.name===b.name)||{order:9999}).order;
       return oa-ob;
     });
     modeLabel=te.length>0?'(วันนี้)':'';
