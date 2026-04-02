@@ -234,10 +234,15 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <button class="btn bsm" style="background:var(--p);color:#fff;" onclick="openBulkModal()">👥 สร้างรายการทีมทั้งหมด</button>
     </div>
   </div>
-  <!-- [FIX3] เปลี่ยนจาก "รายการวันนี้" เป็น "รายการล่าสุด" และเรียงล่าสุดก่อน -->
+  <!-- date filter + fetch -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;flex-wrap:wrap;gap:6px;">
-    <div class="sh">รายการล่าสุด <span class="bdg bb3" id="today-cnt">0</span><span class="recent-lbl" id="recent-mode-lbl"></span></div>
-    <div id="sync-st" style="font-size:12px;"></div>
+    <div class="sh">รายการบันทึก <span class="bdg bb3" id="today-cnt">0</span><span class="recent-lbl" id="recent-mode-lbl"></span></div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <input type="date" id="view-date" style="font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid var(--bd);font-family:inherit;">
+      <button class="btn bo bsm" onclick="loadDateEntries()">🔍 ดูวันที่เลือก</button>
+      <button class="btn bo bsm" onclick="viewToday()">📅 วันนี้</button>
+      <div id="sync-st" style="font-size:12px;"></div>
+    </div>
   </div>
   <div class="tw">
     <table class="tbl">
@@ -294,16 +299,16 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
   </div>
   <div class="sgrid" id="stat-grid"></div>
   <div class="sh">สรุปรายบุคคล</div>
-  <div class="tw" style="margin-bottom:16px;">
-    <table class="tbl">
-      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>มาทำงาน</th><th>ขาดงาน</th><th>พักร้อน</th><th>ป่วย</th><th>ลากิจ</th><th>สาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม./วัน</th></tr></thead>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd);border-radius:10px;margin-bottom:16px;">
+    <table class="tbl" style="min-width:600px;">
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>มาทำงาน</th><th>ขาดงาน</th><th>พักร้อน</th><th>ป่วย</th><th>ลากิจ</th><th>WFH</th><th>ออกนอก</th><th>สาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม./วัน</th></tr></thead>
       <tbody id="mon-body"></tbody>
     </table>
   </div>
-  <div class="sh">เหตุการณ์สาย / ขาด</div>
-  <div class="tw">
-    <table class="tbl">
-      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>วันที่</th><th>เหตุการณ์</th><th>IN</th></tr></thead>
+  <div class="sh">เหตุการณ์สาย / ขาด / ลา</div>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd);border-radius:10px;margin-bottom:16px;">
+    <table class="tbl" style="min-width:500px;">
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>วันที่</th><th>เหตุการณ์</th><th>IN</th><th>OUT</th></tr></thead>
       <tbody id="inc-body"></tbody>
     </table>
     <div id="inc-empty" style="text-align:center;padding:18px;color:var(--mt);font-size:13px;">ไม่มีเหตุการณ์ 🎉</div>
@@ -956,8 +961,8 @@ let shUrl=localStorage.getItem('a_url')||HARDCODED_URL;
 let slots={s1:true,s2:true,s3:true};
 let wkOff=0;
 
-// [FIX3] เก็บรายการล่าสุดที่บันทึก (ไม่ใช่แค่วันนี้)
-let lastAddedIds=JSON.parse(sessionStorage.getItem('a_last')||'[]');
+// รายการล่าสุดเริ่มว่างทุกครั้งที่เปิดหน้าใหม่
+let lastAddedIds=[];
 
 const today=new Date();
 const todayStr=dstr(today);
@@ -979,6 +984,7 @@ function init(){
   document.getElementById('tb-date').textContent=`${today.getDate()} ${MFULL[m]} ${y+543} · วัน${DAYS[today.getDay()]}`;
   document.getElementById('today-lbl').textContent=`วันนี้: ${today.getDate()} ${MTH[m]} ${y+543}`;
   document.getElementById('ep-date').value=todayStr;
+  document.getElementById('view-date').value=todayStr;
   const ms=document.getElementById('mon-sel'),sm=document.getElementById('sum-mon');
   for(let i=0;i<6;i++){
     const d=new Date(y,m-i,1);
@@ -1235,14 +1241,16 @@ function delEntry(id){
   if(shUrl&&e) callGS({action:'delete',id:e.id,empId:e.empId||e.name});
 }
 
-function renderToday(){
+function renderToday(filterDate){
   const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
   const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
 
-  let te,modeLabel='';
-  if(lastAddedIds.length>0){
+  let te, modeLabel='';
+  const viewD = filterDate || document.getElementById('view-date')?.value || '';
+
+  if(lastAddedIds.length>0 && !filterDate){
+    // โหมดล่าสุด — แสดงรายการที่เพิ่งบันทึกในรอบนี้
     te=lastAddedIds.map(id=>entries.find(e=>e.id===id)).filter(Boolean);
-    // เรียงตามวันที่ล่าสุดก่อน ถ้าวันที่เหมือนกันให้เรียงตามลำดับพนักงานใน Employees
     te.sort((a,b)=>{
       const dateDiff=b.date.localeCompare(a.date);
       if(dateDiff!==0) return dateDiff;
@@ -1251,10 +1259,18 @@ function renderToday(){
       return oa-ob;
     });
     modeLabel=`(${te.length} รายการล่าสุดที่บันทึกในรอบนี้)`;
+  } else if(viewD){
+    // โหมดเลือกวันที่
+    te=[...entries.filter(e=>e.date===viewD)].sort((a,b)=>{
+      const oa=(emps.find(e=>e.empId===(a.empId||'')||e.name===a.name)||{order:9999}).order;
+      const ob=(emps.find(e=>e.empId===(b.empId||'')||e.name===b.name)||{order:9999}).order;
+      return oa-ob;
+    });
+    const d=new Date(viewD+'T12:00:00');
+    modeLabel=`(${d.getDate()} ${MTH[d.getMonth()]} ${String(d.getFullYear()+543).slice(2)})`;
   } else {
+    // โหมดวันนี้ (default)
     te=[...entries.filter(e=>e.date===todayStr)].sort((a,b)=>{
-      const dateDiff=b.date.localeCompare(a.date);
-      if(dateDiff!==0) return dateDiff;
       const oa=(emps.find(e=>e.empId===(a.empId||'')||e.name===a.name)||{order:9999}).order;
       const ob=(emps.find(e=>e.empId===(b.empId||'')||e.name===b.name)||{order:9999}).order;
       return oa-ob;
@@ -1265,8 +1281,39 @@ function renderToday(){
   document.getElementById('today-cnt').textContent=te.length;
   document.getElementById('recent-mode-lbl').textContent=modeLabel;
   document.getElementById('today-empty').style.display=te.length?'none':'';
-
   document.getElementById('today-body').innerHTML=te.map((e,i)=>renderRow(e,i)).join('');
+}
+
+function viewToday(){
+  document.getElementById('view-date').value=todayStr;
+  lastAddedIds=[];
+  renderToday(todayStr);
+}
+
+async function loadDateEntries(){
+  const date=document.getElementById('view-date').value;
+  if(!date){toast('กรุณาเลือกวันที่ก่อน','r');return;}
+  lastAddedIds=[];
+
+  // เช็คว่ามีข้อมูลในเครื่องไหม
+  const local=entries.filter(e=>e.date===date);
+  if(local.length>0){
+    renderToday(date);
+    toast(`แสดงรายการ ${local.length} คน จากข้อมูลในเครื่อง`);
+    return;
+  }
+
+  // ไม่มีในเครื่อง → ดึงจาก Sheets
+  if(!shUrl){toast('ไม่มีข้อมูลวันนี้ในเครื่อง และยังไม่ได้เชื่อมต่อ Sheets','r');return;}
+  toast('⏳ กำลังดึงข้อมูลจาก Sheets...');
+  try{
+    await refreshFromSheets();
+    const loaded=entries.filter(e=>e.date===date);
+    renderToday(date);
+    toast(loaded.length>0?`โหลดแล้ว ${loaded.length} คน`:'ไม่พบข้อมูลวันที่นี้ใน Sheets');
+  }catch(e){
+    toast('❌ ดึงข้อมูลไม่ได้','r');
+  }
 }
 
 function renderRow(e, i, editMode=false){
@@ -1556,18 +1603,33 @@ function renderWeekly(){
             </select>
           </div>
         </td>`;
-      } else if(en.status==='absent'){
-        row+=`<td colspan="5" class="wabs">ขาดงาน</td>`;
-      } else if(en.status==='leave'){
-        row+=`<td colspan="5" class="wlv">🌴 ลาพักร้อน</td>`;
-      } else if(en.status==='sick'){
-        row+=`<td colspan="5" class="wsk">🤒 ลาป่วย</td>`;
-      } else if(en.status==='personal'){
-        row+=`<td colspan="5" class="wpersonal">📋 ลากิจ</td>`;
-      } else if(en.status==='wfh'){
-        row+=`<td colspan="5" style="background:#E0F2FE;color:#0369a1;font-size:11px;">🏠 WFH</td>`;
-      } else if(en.status==='offsite'){
-        row+=`<td colspan="5" class="woffsite">🚗 ออกนอก</td>`;
+      } else if(['absent','leave','sick','personal','wfh','offsite'].includes(en.status)){
+        // สถานะไม่ปกติ — ตรวจว่ามีเวลา IN/OUT ไหม (กรณีลาครึ่งวัน/WFH บางส่วน)
+        const hasTime = en.timeIn || en.timeOut;
+        const SB = {
+          absent:  {cls:'wabs',    lbl:'ขาดงาน'},
+          leave:   {cls:'wlv',     lbl:'🌴 พักร้อน'},
+          sick:    {cls:'wsk',     lbl:'🤒 ป่วย'},
+          personal:{cls:'wpersonal',lbl:'📋 ลากิจ'},
+          wfh:     {cls:'',        lbl:'🏠 WFH',     style:'background:#E0F2FE;color:#0369a1;'},
+          offsite: {cls:'woffsite', lbl:'🚗 ออกนอก'},
+        };
+        const sb = SB[en.status]||{cls:'',lbl:en.status};
+        if(!hasTime){
+          // ไม่มีเวลาเลย → colspan ทับทั้ง 5 คอลัมน์ตามเดิม
+          const styleAttr = sb.style ? ` style="${sb.style}"` : '';
+          row+=`<td colspan="5" class="${sb.cls}"${styleAttr}>${sb.lbl}</td>`;
+        } else {
+          // มีเวลา → แสดงตามปกติ แต่ badge เล็กๆ อยู่บน IN
+          const s1=en.slot1||'อยู่', s2=en.slot2||'อยู่', s3=en.slot3||'อยู่';
+          const sc1=s1==='ไม่'?'wno':'wp', sc2=s2==='ไม่'?'wno':'wp', sc3=s3==='ไม่'?'wno':'wp';
+          const badgeStyle = sb.style||'';
+          const badge=`<span class="wlate ${sb.cls}" style="display:block;font-size:9px;font-weight:700;margin-bottom:1px;${badgeStyle}">${sb.lbl}</span>`;
+          row+=`<td class="win" style="vertical-align:middle;">${badge}${en.timeIn||'—'}</td>
+            <td class="${sc1}">${s1}</td><td class="${sc2}">${s2}</td>
+            <td class="${sc3}">${s3}</td>
+            <td class="wout">${en.timeOut||'—'}</td>`;
+        }
       } else {
         // slot: 'อยู่' = มา, 'ไม่' = ไม่มา, '' = ไม่ได้ระบุ (ถือว่ามา ถ้ามีเวลา IN/OUT)
         const hasTime = en.timeIn || en.timeOut;
@@ -1636,7 +1698,7 @@ function renderMonthly(){
   document.getElementById('mon-body').innerHTML=emps.map((emp,i)=>{
     const ee=me.filter(e=> e.empId===emp.empId || normN(e.name)===normN(emp.name));
     const cs=s=>ee.filter(e=>e.status===s).length;
-    const norm=ee.filter(e=>['normal','late','wfh','offsite'].includes(e.status)).length;
+    const norm=ee.filter(e=>['normal','late'].includes(e.status)).length;
     const ins=ee.filter(e=>e.timeIn&&/^\d{1,2}:\d{2}$/.test(e.timeIn)).map(e=>e.timeIn);
     const outs=ee.filter(e=>e.timeOut&&/^\d{1,2}:\d{2}$/.test(e.timeOut)).map(e=>e.timeOut);
     const hrs=ee.filter(e=>e.timeIn&&e.timeOut&&/^\d{1,2}:\d{2}$/.test(e.timeIn)&&/^\d{1,2}:\d{2}$/.test(e.timeOut)).map(e=>{
@@ -1645,21 +1707,33 @@ function renderMonthly(){
     });
     return `<tr><td class="tdn">${i+1}</td><td class="tdl">${emp.name}</td>
       <td><span class="bdg bg3">${norm}</span></td>
-      <td><span class="bdg br3">${cs('absent')}</span></td>
-      <td>${cs('leave')}</td><td>${cs('sick')}</td><td>${cs('personal')}</td>
+      <td>${cs('absent')>0?`<span class="bdg br3">${cs('absent')}</span>`:'0'}</td>
+      <td>${cs('leave')||'0'}</td>
+      <td>${cs('sick')||'0'}</td>
+      <td>${cs('personal')||'0'}</td>
+      <td>${cs('wfh')||'0'}</td>
+      <td>${cs('offsite')||'0'}</td>
       <td>${cs('late')>0?`<span class="bdg bo3">${cs('late')}</span>`:'0'}</td>
       <td style="color:var(--g);font-weight:700;">${ins.length?avgt(ins):'—'}</td>
       <td style="color:var(--r);font-weight:700;">${outs.length?avgt(outs):'—'}</td>
       <td style="color:var(--mt);">${hrs.length?(hrs.reduce((a,b)=>a+b,0)/hrs.length).toFixed(1)+'h':'—'}</td></tr>`;
   }).join('');
-  const inc=me.filter(e=>['late','absent'].includes(e.status)).sort((a,b)=>a.date.localeCompare(b.date));
+
+  // เหตุการณ์ — ขยายให้ครอบคลุมทุกสถานะที่ไม่ใช่ปกติ
+  const SL={late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ลาป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
+  const SC2={late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
+  const inc=me.filter(e=>Object.keys(SL).includes(e.status)).sort((a,b)=>a.date.localeCompare(b.date)||
+    (emps.find(x=>x.empId===a.empId||x.name===a.name)||{order:9999}).order -
+    (emps.find(x=>x.empId===b.empId||x.name===b.name)||{order:9999}).order
+  );
   document.getElementById('inc-empty').style.display=inc.length?'none':'';
   document.getElementById('inc-body').innerHTML=inc.map((e,i)=>{
     const d=new Date(e.date+'T12:00:00');
     return `<tr><td class="tdn">${i+1}</td><td class="tdl">${e.name}</td>
       <td style="color:var(--mt);">${d.getDate()} ${MTH[d.getMonth()]} (${DAYS[d.getDay()]})</td>
-      <td><span class="bdg ${e.status==='late'?'bo3':'br3'}">${e.status==='late'?'⏰ สาย':'❌ ขาด'}</span></td>
-      <td class="tdi">${e.timeIn||'—'}</td></tr>`;
+      <td><span class="bdg ${SC2[e.status]||'bb3'}">${SL[e.status]||e.status}</span></td>
+      <td class="tdi">${e.timeIn||'—'}</td>
+      <td style="color:var(--r);font-weight:700;">${e.timeOut||'—'}</td></tr>`;
   }).join('');
 }
 
