@@ -304,7 +304,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
 <!-- EMPLOYEES -->
 <div id="tab-emps" class="panel">
   <div style="background:#E1F5EE;border:1px solid #9AE6B4;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#085041;">
-    ☁️ <strong>ชื่อพนักงานเก็บใน Google Sheets (Sheet: Employees)</strong> — ทุกเครื่องดึงชื่อจาก Sheets เสมอ ชื่อตรงกัน 100%
+    ☁️ <strong>ชื่อพนักงานเก็บใน Google Sheets (Sheet: Name)</strong> — ทุกเครื่องดึงชื่อจาก Sheets เสมอ ชื่อตรงกัน 100% เรียงตามคอลัมน์ <strong>ลำดับที่</strong>
     <div id="emps-sheet-st" style="margin-top:4px;"></div>
   </div>
   <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;">
@@ -360,16 +360,15 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <button class="btn bo bsm" onclick="copyScript()">📋 คัดลอก</button>
     </div>
     <pre class="code" id="gs-code">// ═══════════════════════════════════════════════════
-//  ระบบเช็คเวลา — Google Apps Script v2 (CORS-free)
-//  - ใช้ doGet เพียงอย่างเดียว (ไม่มี doPost)
-//  - ส่งข้อมูลผ่าน URL parameter ไม่มี preflight
-//  - ทำงานได้จากไฟล์ HTML ในเครื่องโดยตรง
-//  - ข้อมูลเก็บใน Sheet ชื่อ "Attendance" และ "DayNotes"
-//    ภายในไฟล์ Google Sheets ที่ Deploy Script นี้
+//  ระบบเช็คเวลา — Google Apps Script v3
+//  - ใช้ doGet เพียงอย่างเดียว (CORS-free)
+//  - ดึง Record sheet → หาเวลาเข้า(ต่ำสุด)/ออก(สูงสุด) อัตโนมัติ
+//  - เปลี่ยน Employees → Name sheet (มีคอลัมน์ ลำดับที่)
+//  - ข้อมูลเก็บใน Sheet: Attendance, DayNotes, Name
 // ═══════════════════════════════════════════════════
 const SHEET = 'Attendance';
 const NOTES = 'DayNotes';
-const EMPS  = 'Employees';
+const EMPS  = 'Name';  // เปลี่ยนจาก Employees → Name
 
 function doGet(e) {
   const p = e.parameter;
@@ -515,19 +514,28 @@ function getNotes() {
 
 function getEmps() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(EMPS);
+  const sh = ss.getSheetByName(EMPS); // 'Name'
   if (!sh) return [];
   const data = sh.getDataRange().getValues();
   if (data.length < 2) return [];
-  const hdrs = data[0].map(String);
+  const hdrs = data[0].map(h => String(h).trim());
+
   return data.slice(1).map(r => {
     const o = {};
     hdrs.forEach((h, i) => { o[h] = r[i] == null ? '' : String(r[i]); });
     return o;
+  }).filter(r => {
+    // กรองเฉพาะแถวที่มีรหัสพนักงาน
+    const id = r['รหัสพนักงาน'] || r['empId'] || r['รหัส'] || '';
+    return id.trim() !== '';
   });
 }
 
 // ดึงข้อมูลจาก Sheet "Record" ตามวันที่ที่ระบุ
+// หลักการ: แต่ละแถวใน Record คือ timestamp ของการสแกนการ์ด
+//   → แตกเวลาออกจากคอลัมน์ วันเวลา (DD/MM/YYYY HH:mm:ss)
+//   → จัดกลุ่มตาม empId + วันที่
+//   → เวลาน้อยที่สุด = timeIn (สีเหลือง), เวลาสูงสุด = timeOut (สีเขียว)
 // คืนค่าเป็น array ของ { empId, date, timeIn, timeOut }
 function getRecords(filterDate) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -535,44 +543,88 @@ function getRecords(filterDate) {
   if (!sh) return [];
   const data = sh.getDataRange().getValues();
   if (data.length < 2) return [];
-  const hdrs = data[0].map(String);
+  const hdrs = data[0].map(h => String(h).trim());
 
-  const timeColumns = ['เวลาIN','เวลาOUT','IN','OUT','timeIn','timeOut','เข้า','ออก','เวลาเข้า','เวลาออก'];
-  const dateColumns = ['วันที่','date','Date','วันที่ทำงาน'];
+  // หา index ของคอลัมน์สำคัญ (รองรับชื่อหลายแบบ)
+  const idxEmpId   = hdrs.findIndex(h => ['รหัสพนักงาน','empId','ID','รหัส'].includes(h));
+  const idxDatetime= hdrs.findIndex(h => ['วันเวลา','datetime','Datetime','วันที่เวลา','timestamp'].includes(h));
+  // ถ้าไม่มีคอลัมน์ วันเวลา ให้ลองหาคอลัมน์ วันที่ และ เวลา แยก
+  const idxDate    = hdrs.findIndex(h => ['วันที่','date','Date','วันที่ทำงาน'].includes(h));
+  const idxTime    = hdrs.findIndex(h => ['เวลา','time','Time','เวลาสแกน'].includes(h));
 
-  const results = [];
+  // map: key = "empId|date" → { empId, date, times: [HH:mm, ...] }
+  const grouped = {};
+
   data.slice(1).forEach(r => {
-    // แปลงเป็น object ก่อน
-    const row = {};
-    hdrs.forEach((h, i) => {
-      const val = r[i];
-      if (val instanceof Date) {
-        const hTrim = h.trim();
-        if (timeColumns.some(tc => tc === hTrim)) {
-          row[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'HH:mm');
-        } else if (dateColumns.some(dc => dc === hTrim)) {
-          row[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd');
-        } else {
-          row[h] = Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
-        }
-      } else {
-        row[h] = val == null ? '' : String(val);
-      }
-    });
-
-    // หาค่า date และ empId จาก header ที่เป็นไปได้หลายชื่อ
-    const rawDate = row['วันที่'] || row['date'] || row['Date'] || row['วันที่ทำงาน'] || '';
-    const parsedDate = rawDate.substring(0, 10);
-    if (filterDate && parsedDate !== filterDate) return; // กรองตามวันที่
-
-    const empId = row['รหัสพนักงาน'] || row['empId'] || row['ID'] || row['รหัส'] || '';
-    const timeIn  = row['เวลาIN'] || row['IN'] || row['timeIn'] || row['เวลาเข้า'] || row['เข้า'] || '';
-    const timeOut = row['เวลาOUT'] || row['OUT'] || row['timeOut'] || row['เวลาออก'] || row['ออก'] || '';
-
+    const empId = idxEmpId >= 0 ? String(r[idxEmpId] || '').trim() : '';
     if (!empId) return;
-    results.push({ empId, date: parsedDate, timeIn, timeOut });
+
+    let dateStr = '';  // YYYY-MM-DD
+    let timeStr = '';  // HH:mm
+
+    if (idxDatetime >= 0) {
+      // ── โหมด 1: คอลัมน์เดียว "วันเวลา" เช่น "23/03/2026 9:34:01" ──
+      const raw = r[idxDatetime];
+      if (raw instanceof Date) {
+        dateStr = Utilities.formatDate(raw, 'Asia/Bangkok', 'yyyy-MM-dd');
+        timeStr = Utilities.formatDate(raw, 'Asia/Bangkok', 'HH:mm');
+      } else {
+        const s = String(raw || '').trim();
+        // รูปแบบ DD/MM/YYYY HH:mm[:ss]
+        const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\s+(\d{1,2}):(\d{2})/);
+        if (m) {
+          dateStr = m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+          timeStr = m[4].padStart(2,'0') + ':' + m[5];
+        } else {
+          // รูปแบบ YYYY-MM-DD HH:mm[:ss]
+          const m2 = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(\d{1,2}):(\d{2})/);
+          if (m2) {
+            dateStr = m2[1] + '-' + m2[2] + '-' + m2[3];
+            timeStr = m2[4].padStart(2,'0') + ':' + m2[5];
+          }
+        }
+      }
+    } else if (idxDate >= 0) {
+      // ── โหมด 2: คอลัมน์วันที่ + คอลัมน์เวลา แยกกัน ──
+      const rawD = r[idxDate];
+      if (rawD instanceof Date) {
+        dateStr = Utilities.formatDate(rawD, 'Asia/Bangkok', 'yyyy-MM-dd');
+      } else {
+        const s = String(rawD || '').trim();
+        const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (m) dateStr = m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+        else if (/^\d{4}-\d{2}-\d{2}/.test(s)) dateStr = s.substring(0,10);
+      }
+      if (idxTime >= 0) {
+        const rawT = r[idxTime];
+        if (rawT instanceof Date) {
+          timeStr = Utilities.formatDate(rawT, 'Asia/Bangkok', 'HH:mm');
+        } else {
+          const s = String(rawT || '').trim();
+          const m = s.match(/^(\d{1,2}):(\d{2})/);
+          if (m) timeStr = m[1].padStart(2,'0') + ':' + m[2];
+        }
+      }
+    }
+
+    if (!dateStr || !timeStr) return;
+    if (filterDate && dateStr !== filterDate) return;
+
+    const key = empId + '|' + dateStr;
+    if (!grouped[key]) grouped[key] = { empId, date: dateStr, times: [] };
+    grouped[key].times.push(timeStr);
   });
-  return results;
+
+  // แปลง grouped → results พร้อม min/max
+  return Object.values(grouped).map(g => {
+    const sorted = g.times.slice().sort(); // HH:mm sort alphabetically = chronologically
+    return {
+      empId:   g.empId,
+      date:    g.date,
+      timeIn:  sorted[0],                    // เวลาน้อยสุด = IN (สีเหลือง)
+      timeOut: sorted.length > 1 ? sorted[sorted.length - 1] : sorted[0]  // เวลาสูงสุด = OUT (สีเขียว)
+    };
+  });
 }
 
 function saveEmp(p) {
@@ -580,18 +632,39 @@ function saveEmp(p) {
   let sh = ss.getSheetByName(EMPS);
   if (!sh) {
     sh = ss.insertSheet(EMPS);
-    sh.appendRow(['ชื่อ', 'ตำแหน่ง', 'ลำดับ']);
-    sh.getRange(1,1,1,3).setFontWeight('bold').setBackground('#378ADD').setFontColor('white');
+    // ใช้ header ตาม Name sheet จริง
+    const h = ['ชื่อนามสกุล','ชื่อ','ชื่อ1','ชื่อเล่น','รหัสพนักงาน','บริษัท','ฝ่าย','ทีม','ตำแหน่ง','ลำดับที่'];
+    sh.appendRow(h);
+    sh.getRange(1, 1, 1, h.length)
+      .setFontWeight('bold')
+      .setBackground('#E24B4A')
+      .setFontColor('white');
   }
   const data = sh.getDataRange().getValues();
+  const hdrs = data[0].map(String);
+  // หา index ของ รหัสพนักงาน
+  const idxId = hdrs.findIndex(h => ['รหัสพนักงาน','empId','รหัส'].includes(h));
+  if (idxId < 0) return { success: false, error: 'ไม่พบคอลัมน์รหัสพนักงาน' };
+
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(p.name)) {
-      sh.getRange(i+1,2).setValue(p.pos||'พนักงาน');
-      if (p.order) sh.getRange(i+1,3).setValue(Number(p.order));
+    if (String(data[i][idxId]) === String(p.empId || p.name)) {
+      // อัปเดตคอลัมน์ที่มี
+      const idxPos = hdrs.findIndex(h => ['ตำแหน่ง','pos'].includes(h));
+      const idxOrd = hdrs.findIndex(h => ['ลำดับที่','ลำดับ','order'].includes(h));
+      if (idxPos >= 0) sh.getRange(i+1, idxPos+1).setValue(p.pos || 'พนักงาน');
+      if (idxOrd >= 0 && p.order) sh.getRange(i+1, idxOrd+1).setValue(Number(p.order));
       return { success: true };
     }
   }
-  sh.appendRow([p.name, p.pos||'พนักงาน', Number(p.order)||data.length]);
+  // เพิ่มแถวใหม่ (กรณีที่ saveEmp ถูกเรียกจาก frontend เพื่อเพิ่มพนักงาน)
+  const newRow = new Array(hdrs.length).fill('');
+  hdrs.forEach((h, i) => {
+    if (['รหัสพนักงาน','empId'].includes(h)) newRow[i] = p.empId || '';
+    if (['ชื่อ1','ชื่อ'].includes(h)) newRow[i] = p.name || '';
+    if (['ตำแหน่ง','pos'].includes(h)) newRow[i] = p.pos || 'พนักงาน';
+    if (['ลำดับที่','ลำดับ'].includes(h)) newRow[i] = Number(p.order) || data.length;
+  });
+  sh.appendRow(newRow);
   return { success: true };
 }
 
@@ -753,8 +826,8 @@ function init(){
     callGS({action:'getEmps'}).then(de=>{
       if(de.emps&&de.emps.length>0){
         emps=de.emps.map((e,i)=>({
-          empId: String(e['รหัสพนักงาน']||'').trim(),
-          name:  String(e['ชื่อ1']||e['ชื่อ']||'').trim(),
+          empId: String(e['รหัสพนักงาน']||e['empId']||e['รหัส']||'').trim(),
+          name:  String(e['ชื่อ1']||e['ชื่อ']||e['ชื่อนามสกุล']||'').trim(),
           pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
           dept:  String(e['ฝ่าย']||'').trim(),
           order: Number(e['ลำดับที่']||e['ลำดับ']||i+1)
@@ -865,16 +938,21 @@ async function saveAllEmps(){
 async function syncEmpsFromSheets(){
   if(!shUrl){toast('กรุณาเชื่อมต่อ Google Sheets ก่อน','r');return;}
   const st=document.getElementById('emps-sheet-st');
-  st.textContent='⏳ กำลังดึงรายชื่อจาก Sheets...';
+  st.textContent='⏳ กำลังดึงรายชื่อจาก Sheets (Name)...';
   try{
     const de=await callGS({action:'getEmps'});
     if(!de.emps||de.emps.length===0){
-      st.textContent='⚠️ ยังไม่มีพนักงานใน Sheets — เพิ่มพนักงานด้านล่างได้เลย';return;
+      st.textContent='⚠️ ยังไม่มีพนักงานใน Name sheet — ตรวจสอบว่ามีคอลัมน์ รหัสพนักงาน และ ชื่อ1';return;
     }
-    emps=de.emps.map(e=>({name:String(e['ชื่อ']||'').trim(),pos:String(e['ตำแหน่ง']||'พนักงาน'),order:Number(e['ลำดับ']||0)}))
-      .filter(e=>e.name).sort((a,b)=>a.order-b.order);
+    emps=de.emps.map((e,i)=>({
+      empId: String(e['รหัสพนักงาน']||e['empId']||e['รหัส']||'').trim(),
+      name:  String(e['ชื่อ1']||e['ชื่อ']||e['ชื่อนามสกุล']||'').trim(),
+      pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
+      dept:  String(e['ฝ่าย']||'').trim(),
+      order: Number(e['ลำดับที่']||e['ลำดับ']||i+1)
+    })).filter(e=>e.empId&&e.name).sort((a,b)=>a.order-b.order);
     saveEmps();buildEmpSel();renderEmps();
-    st.textContent='✅ โหลดจาก Sheets แล้ว '+emps.length+' คน';
+    st.textContent='✅ โหลดจาก Name sheet แล้ว '+emps.length+' คน (เรียงตามลำดับที่)';
     toast('รีเฟรชรายชื่อพนักงานแล้ว ✓');
   }catch(err){ st.textContent='❌ เชื่อมต่อไม่ได้ ใช้รายชื่อในเครื่องแทน'; }
 }
@@ -951,18 +1029,29 @@ async function addEntry(){
 }
 
 // ดึง Record ของ empId+date จาก Sheet "Record"
+// GS จะคืนค่า min/max มาให้แล้ว แต่ถ้าคืนหลายแถว (GS เก่า) จะหา min/max เองในฝั่ง frontend ด้วย
 async function getRecordForEmp(empId, date){
   try{
     const d=await callGS({action:'getRecords',date});
     if(!d.records||d.records.length===0) return null;
-    let rec=d.records.find(r=>r.empId===String(empId)&&r.date===date);
-    if(rec) return rec;
-    const emp=findEmp(empId);
-    if(emp){
-      rec=d.records.find(r=>(r.empId===emp.name||normN(r.empId)===normN(emp.name))&&r.date===date);
-      if(rec) return rec;
-    }
-    return null;
+    // กรองเฉพาะ record ของ empId นี้
+    const matched=d.records.filter(r=>{
+      if(r.empId===String(empId)) return true;
+      const emp=findEmp(empId);
+      if(emp&&(r.empId===emp.name||normN(r.empId)===normN(emp.name))) return true;
+      return false;
+    });
+    if(matched.length===0) return null;
+    if(matched.length===1) return matched[0];
+    // หลายแถว → หา min timeIn, max timeOut (กรณี GS เก่าที่ยังไม่ aggregate)
+    const times=matched.map(r=>r.timeIn||r.timeOut).filter(Boolean).sort();
+    const allOuts=matched.map(r=>r.timeOut||r.timeIn).filter(Boolean).sort();
+    return {
+      empId,
+      date,
+      timeIn:  times[0]||'',
+      timeOut: allOuts.length>0?allOuts[allOuts.length-1]:''
+    };
   }catch(e){ console.warn('getRecordForEmp error:',e); return null; }
 }
 
@@ -1819,12 +1908,13 @@ async function refreshFromSheets(){
     ]);
     if(de.emps&&de.emps.length>0){
       emps=de.emps.map((e,i)=>({
-        empId: String(e['รหัสพนักงาน']||'').trim(),
-        name:  String(e['ชื่อ1']||e['ชื่อ']||'').trim(),
+        empId: String(e['รหัสพนักงาน']||e['empId']||e['รหัส']||'').trim(),
+        name:  String(e['ชื่อ1']||e['ชื่อ']||e['ชื่อนามสกุล']||'').trim(),
         pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
         dept:  String(e['ฝ่าย']||'').trim(),
-        order: i
-      })).filter(e=>e.empId&&e.name);
+        order: Number(e['ลำดับที่']||e['ลำดับ']||i+1)
+      })).filter(e=>e.empId&&e.name)
+         .sort((a,b)=>a.order-b.order);
       saveEmps();buildEmpSel();
     }
 
