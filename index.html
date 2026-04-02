@@ -380,6 +380,7 @@ function doGet(e) {
   if (action === 'getEmps')        return ok({ emps: getEmps() });
   if (action === 'getRecords')     return ok({ records: getRecords(p.date) });
   if (action === 'syncFromRecord') return ok(syncFromRecord(p.date));
+  if (action === 'debugRecord')    return ok(debugRecord());
   if (action === 'save')           return ok(saveEntry(p));
   if (action === 'saveNote')       return ok(saveNote(p));
   if (action === 'saveEmp')        return ok(saveEmp(p));
@@ -722,7 +723,39 @@ function syncFromRecord(filterDate) {
   return { saved, skipped, rows: savedRows };
 }
 
-function saveEmp(p) {
+// debug: ดูข้อมูลดิบจาก Record sheet เพื่อวิเคราะห์ปัญหา
+function debugRecord() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName('Record');
+  if (!sh) return { error: 'ไม่พบ Sheet ชื่อ "Record"' };
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return { error: 'Record sheet ว่าง (ไม่มีข้อมูล)', rows: data.length };
+
+  const hdrs = data[0].map(h => String(h).trim());
+
+  // ดูแถว 1-3 พร้อม type ของแต่ละ cell
+  const samples = data.slice(1, 4).map(r => {
+    const obj = {};
+    hdrs.forEach((h, i) => {
+      const val = r[i];
+      const t = val instanceof Date ? 'Date' : typeof val;
+      const fmtVal = val instanceof Date
+        ? Utilities.formatDate(val, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss')
+        : String(val ?? '');
+      obj[h] = { raw: fmtVal, type: t };
+    });
+    return obj;
+  });
+
+  return {
+    sheetName: 'Record',
+    totalRows: data.length - 1,
+    headers: hdrs,
+    samples,
+    // ทดสอบ getRecords โดยไม่ filter
+    recordsParsed: getRecords(null).slice(0, 5)
+  };
+}
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(EMPS);
   if (!sh) {
@@ -787,7 +820,9 @@ function ok(data) {
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn bp" onclick="loadAll()">🔄 ดึงข้อมูลทั้งหมด</button>
       <button class="btn bo" onclick="loadNotes()">📌 ดึงหมายเหตุวัน</button>
+      <button class="btn bo bsm" onclick="debugRecordSheet()" style="color:#744210;border-color:#F6E05E;">🔍 Debug Record Sheet</button>
     </div>
+    <pre id="debug-record-out" style="display:none;background:#1a202c;color:#68d391;padding:12px;border-radius:8px;font-size:11px;font-family:monospace;margin-top:10px;overflow-x:auto;white-space:pre-wrap;line-height:1.6;"></pre>
     <div class="dvd"></div>
     <h3>☁️ อัปโหลดข้อมูลในเครื่องขึ้น Google Sheets</h3>
     <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">
@@ -2128,6 +2163,32 @@ function toast(msg,col='g'){
   const el=document.getElementById('toast');el.textContent=msg;
   el.style.background=col==='r'?'#c53030':'#1a202c';
   el.style.display='block';setTimeout(()=>el.style.display='none',2200);
+}
+
+async function debugRecordSheet(){
+  const out = document.getElementById('debug-record-out');
+  out.style.display = 'block';
+  out.textContent = '⏳ กำลังดึงข้อมูลดิบจาก Record sheet...';
+  try{
+    const d = await callGS({action:'debugRecord'});
+    if(d.error){ out.textContent = '❌ '+d.error; return; }
+    let msg = `📋 Sheet: ${d.sheetName}  |  แถวข้อมูล: ${d.totalRows} แถว\n`;
+    msg += `\n🔑 Headers (${d.headers.length} คอลัมน์):\n  ${d.headers.map((h,i)=>`[${i}]${h}`).join('  ')}\n`;
+    msg += `\n🔎 ตัวอย่างข้อมูล 3 แถวแรก:\n`;
+    d.samples.forEach((row, i) => {
+      msg += `\n── แถว ${i+1} ──\n`;
+      Object.entries(row).forEach(([h,v]) => {
+        msg += `  ${h}: "${v.raw}"  (type: ${v.type})\n`;
+      });
+    });
+    msg += `\n✅ getRecords() parse ได้ ${d.recordsParsed?.length ?? 0} records (5 แรก):\n`;
+    (d.recordsParsed||[]).forEach(r => {
+      msg += `  empId="${r.empId}"  date="${r.date}"  IN="${r.timeIn}"  OUT="${r.timeOut}"\n`;
+    });
+    out.textContent = msg;
+  }catch(e){
+    out.textContent = '❌ Error: '+e.message;
+  }
 }
 
 init();
