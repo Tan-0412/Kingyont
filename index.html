@@ -374,16 +374,17 @@ function doGet(e) {
   const p = e.parameter;
   const action = p.action || '';
 
-  if (action === 'ping')        return ok({ pong: true });
-  if (action === 'getAll')      return ok({ rows: getRows() });
-  if (action === 'getNotes')    return ok({ notes: getNotes() });
-  if (action === 'getEmps')     return ok({ emps: getEmps() });
-  if (action === 'getRecords')  return ok({ records: getRecords(p.date) });
-  if (action === 'save')        return ok(saveEntry(p));
-  if (action === 'saveNote')    return ok(saveNote(p));
-  if (action === 'saveEmp')     return ok(saveEmp(p));
-  if (action === 'deleteEmp')   return ok(deleteEmp(p.name));
-  if (action === 'delete')      return ok(deleteEntry(p.id));
+  if (action === 'ping')           return ok({ pong: true });
+  if (action === 'getAll')         return ok({ rows: getRows() });
+  if (action === 'getNotes')       return ok({ notes: getNotes() });
+  if (action === 'getEmps')        return ok({ emps: getEmps() });
+  if (action === 'getRecords')     return ok({ records: getRecords(p.date) });
+  if (action === 'syncFromRecord') return ok(syncFromRecord(p.date));
+  if (action === 'save')           return ok(saveEntry(p));
+  if (action === 'saveNote')       return ok(saveNote(p));
+  if (action === 'saveEmp')        return ok(saveEmp(p));
+  if (action === 'deleteEmp')      return ok(deleteEmp(p.name));
+  if (action === 'delete')         return ok(deleteEntry(p.id));
 
   return ok({ status: 'ready' });
 }
@@ -391,15 +392,15 @@ function doGet(e) {
 function saveEntry(p) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(SHEET);
+  const h = ['ID','วันที่','ชื่อพนักงาน','เวลาIN','9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
   if (!sh) {
     sh = ss.insertSheet(SHEET);
-    const h = ['ID','วันที่','ชื่อพนักงาน','เวลาIN',
-               '9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
     sh.appendRow(h);
-    sh.getRange(1, 1, 1, h.length)
-      .setFontWeight('bold')
-      .setBackground('#1D9E75')
-      .setFontColor('white');
+    sh.getRange(1, 1, 1, h.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
+  } else if (sh.getLastRow() === 0) {
+    // ชีทมีอยู่แต่ว่างเปล่า (ถูกลบข้อมูลทิ้ง) → สร้าง header ใหม่
+    sh.appendRow(h);
+    sh.getRange(1, 1, 1, h.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
   }
   // ลบข้อมูลเดิมของคนนี้วันนี้ก่อน
   const data = sh.getDataRange().getValues();
@@ -625,6 +626,100 @@ function getRecords(filterDate) {
       timeOut: sorted.length > 1 ? sorted[sorted.length - 1] : sorted[0]  // เวลาสูงสุด = OUT (สีเขียว)
     };
   });
+}
+
+// ════════════════════════════════════════════════════════
+//  syncFromRecord(date)
+//  อ่าน Record sheet → หา min/max เวลาต่อ empId+วันที่
+//  → เขียนลง Attendance sheet อัตโนมัติ (ไม่เขียนทับถ้ามีแล้ว)
+//  → คืน { saved, skipped, rows } กลับมาให้ frontend แสดงผล
+// ════════════════════════════════════════════════════════
+function syncFromRecord(filterDate) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. ดึง records (min/max) จาก Record sheet
+  const records = getRecords(filterDate);
+  if (records.length === 0) return { saved: 0, skipped: 0, rows: [], error: 'ไม่พบข้อมูลใน Record sheet สำหรับวันที่ ' + filterDate };
+
+  // 2. ดึง Name sheet เพื่อ map empId → ชื่อ1
+  const nameMap = {};  // empId → { name, order }
+  const nameSh = ss.getSheetByName(EMPS);
+  if (nameSh) {
+    const nd = nameSh.getDataRange().getValues();
+    if (nd.length > 1) {
+      const nh = nd[0].map(h => String(h).trim());
+      const niId   = nh.findIndex(h => ['รหัสพนักงาน','empId','รหัส'].includes(h));
+      const niName = nh.findIndex(h => ['ชื่อ1','ชื่อ','ชื่อนามสกุล'].includes(h));
+      const niOrd  = nh.findIndex(h => ['ลำดับที่','ลำดับ'].includes(h));
+      nd.slice(1).forEach(r => {
+        const id = niId >= 0 ? String(r[niId]||'').trim() : '';
+        if (!id) return;
+        nameMap[id] = {
+          name:  niName >= 0 ? String(r[niName]||'').trim() : id,
+          order: niOrd  >= 0 ? Number(r[niOrd]||9999) : 9999
+        };
+      });
+    }
+  }
+
+  // 3. เตรียม Attendance sheet
+  const attH = ['ID','วันที่','ชื่อพนักงาน','เวลาIN','9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
+  let sh = ss.getSheetByName(SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET);
+    sh.appendRow(attH);
+    sh.getRange(1, 1, 1, attH.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
+  } else if (sh.getLastRow() === 0) {
+    // ชีทมีอยู่แต่ว่างเปล่า → สร้าง header ใหม่
+    sh.appendRow(attH);
+    sh.getRange(1, 1, 1, attH.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
+  }
+
+  // 4. ดึงแถวที่มีอยู่ใน Attendance เพื่อเช็ค duplicate
+  const attData = sh.getDataRange().getValues();
+  const attHdrs = attData[0].map(String);
+  const aiDate  = attHdrs.indexOf('วันที่');
+  const aiName  = attHdrs.indexOf('ชื่อพนักงาน');
+  // สร้าง Set ของ "วันที่|ชื่อ" ที่มีอยู่แล้ว
+  const existingKeys = new Set();
+  attData.slice(1).forEach(r => {
+    const d = String(r[aiDate]||'').trim();
+    const n = String(r[aiName]||'').trim();
+    if (d && n) existingKeys.add(d + '|' + n);
+  });
+
+  // 5. เขียนรายการที่ยังไม่มี
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
+  let saved = 0, skipped = 0;
+  const savedRows = [];
+
+  records.forEach(rec => {
+    const info = nameMap[rec.empId] || { name: rec.empId, order: 9999 };
+    const name = info.name;
+    const key  = rec.date + '|' + name;
+
+    if (existingKeys.has(key)) {
+      skipped++;
+      return;
+    }
+
+    const newId = rec.date.replace(/-/g,'') + '_' + rec.empId;
+    sh.appendRow([
+      newId,
+      rec.date,
+      name,
+      rec.timeIn  || '',
+      'อยู่', 'อยู่', 'อยู่',  // slot default
+      rec.timeOut || '',
+      'normal',
+      now
+    ]);
+    existingKeys.add(key);
+    saved++;
+    savedRows.push({ empId: rec.empId, name, date: rec.date, timeIn: rec.timeIn, timeOut: rec.timeOut });
+  });
+
+  return { saved, skipped, rows: savedRows };
 }
 
 function saveEmp(p) {
@@ -1215,88 +1310,50 @@ async function bulkCreateAll(){
   closeModal('bulk-modal');
   if(new Date(date+'T12:00:00').getDay()===0){toast('วันอาทิตย์ไม่ทำการ','r');return;}
 
-  toast('⏳ กำลังตรวจสอบข้อมูลจาก Sheets...');
-
-  // ดึง Record + Attendance จาก Sheets ก่อนเสมอ (เพื่อให้ existing ถูกต้อง)
-  let dayRecords=[];
-  if(shUrl){
-    try{
-      // ดึง Record (เวลาเข้า-ออก) และ Attendance (ที่บันทึกแล้ว) พร้อมกัน
-      const [recRes, attRes] = await Promise.all([
-        callGS({action:'getRecords', date}),
-        callGS({action:'getAll'})
-      ]);
-      dayRecords = recRes.records||[];
-      // sync Attendance จาก Sheets เข้า entries ในเครื่องก่อน
-      if(attRes.rows && attRes.rows.length>0){
-        attRes.rows.forEach(r=>{
-          const eId = getField(r,'รหัสพนักงาน','empId') || '';
-          const rawDate = getField(r,'วันที่','date');
-          const d = parseSheetDate(rawDate);
-          if(!eId || !d || d!==date) return;
-          // ถ้ายังไม่มีใน entries ให้เพิ่ม (ป้องกัน duplicate)
-          if(!entries.find(e=>(e.empId===eId||e.name===eId)&&e.date===d)){
-            entries.push({
-              id: getField(r,'ID','id')||`${d}_${eId}`,
-              empId:eId, name:getField(r,'ชื่อพนักงาน','ชื่อ1','ชื่อ',eId),
-              date:d,
-              timeIn:parseSheetTime(getField(r,'เวลาIN','IN')),
-              timeOut:parseSheetTime(getField(r,'เวลาOUT','OUT')),
-              status:getField(r,'สถานะ','status')||'normal',
-              slot1:getField(r,'9-11'), slot2:getField(r,'13-15'), slot3:getField(r,'15-17'),
-              _fromSheets:true
-            });
-          }
-        });
-        saveEnt();
-      }
-    }catch(e){ console.warn('bulkCreateAll fetch error:',e); }
+  if(!shUrl){
+    toast('กรุณาเชื่อมต่อ Google Sheets ก่อน','r');return;
   }
 
-  // ตรวจสอบ existing จาก entries ที่ sync แล้ว
-  // ใช้ Set ของ empId ที่มีรายการวันนั้น (กรองค่าว่าง/undefined ออก)
-  const existingIds = new Set(
-    entries
-      .filter(e => e.date === date && (e.empId||e.name))
-      .map(e => String(e.empId||e.name).trim())
-      .filter(Boolean)
-  );
+  toast('⏳ กำลังดึงเวลาจาก Record sheet และบันทึกลง Attendance...');
 
-  // emps ที่ยังไม่มีรายการ — ถ้า empId ว่างให้ข้าม
-  const toCreate = emps.filter(emp => {
-    const id = String(emp.empId||'').trim();
-    if(!id) return false;  // ข้าม emp ที่ไม่มี empId (ป้องกัน bug เดิม)
-    return !existingIds.has(id);
-  });
-  if(toCreate.length===0){toast('มีรายการครบทุกคนแล้ว ✓');return;}
+  try{
+    // ── ขั้นตอนเดียว: GS อ่าน Record → หา min/max → เขียน Attendance ──
+    const res = await callGS({action:'syncFromRecord', date});
 
-  const newEntries=[];
-  toCreate.forEach(emp=>{
-    // match ด้วย empId ก่อน ถ้าไม่เจอลอง match ด้วยชื่อ (กรณี Record sheet เก็บชื่อแทน ID)
-    const rec=dayRecords.find(r=>r.empId===emp.empId) ||
-              dayRecords.find(r=>r.empId===emp.name||normN(r.empId)===normN(emp.name));
-    const id=`${date}_${emp.empId}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-    const entry={
-      id, empId:emp.empId, name:emp.name, date,
-      timeIn:  rec?rec.timeIn:'',
-      timeOut: rec?rec.timeOut:'',
-      status:'normal',
-      slot1:'อยู่', slot2:'อยู่', slot3:'อยู่',
-      _draft: !rec  // ถ้าไม่มี Record = รอกรอก
-    };
-    entries.push(entry);
-    lastAddedIds=[id,...lastAddedIds];
-    newEntries.push(entry);
-  });
+    if(res.error){
+      toast('❌ '+res.error,'r');return;
+    }
 
-  saveEnt(); saveLastIds();
-  renderToday(); renderAlerts();
-  const hasScan=newEntries.filter(e=>e.timeIn).length;
-  toast(`✅ สร้าง ${newEntries.length} คน (มีเวลาจาก Record ${hasScan} คน)`);
+    const {saved=0, skipped=0, rows=[]} = res;
 
-  if(shUrl){
-    for(const entry of newEntries){ await syncEntry(entry); }
-    toast(`☁️ Sync ${newEntries.length} คนขึ้น Sheets แล้ว`);
+    if(saved===0 && skipped>0){
+      toast(`มีรายการครบทุกคนใน Attendance แล้ว (${skipped} คน) ✓`);
+    } else {
+      toast(`✅ บันทึกลง Attendance แล้ว ${saved} คน${skipped>0?' (ข้าม '+skipped+' คนที่มีแล้ว)':''}`);
+    }
+
+    // refresh entries ในเครื่องให้ตรงกับ Sheets
+    if(rows.length>0){
+      rows.forEach(r=>{
+        // ถ้ายังไม่มีใน local entries ให้เพิ่ม
+        if(!entries.find(e=>e.empId===r.empId&&e.date===r.date)){
+          const id=`${r.date}_${r.empId}`;
+          entries.push({
+            id, empId:r.empId, name:r.name, date:r.date,
+            timeIn:r.timeIn||'', timeOut:r.timeOut||'',
+            status:'normal', slot1:'อยู่', slot2:'อยู่', slot3:'อยู่',
+            _fromSheets:true
+          });
+          lastAddedIds=[id,...lastAddedIds];
+        }
+      });
+      saveEnt(); saveLastIds();
+      renderToday(); renderAlerts();
+    }
+
+  }catch(err){
+    toast('❌ เกิดข้อผิดพลาด: '+err.message,'r');
+    console.error('bulkCreateAll error:',err);
   }
 }
 
