@@ -354,6 +354,28 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <button class="btn bo" id="sh-debug" onclick="debugSheets()" style="display:none;" title="ดูข้อมูลดิบจาก Sheets เพื่อ debug">🔍 Debug</button>
     </div>
     <div class="cst" id="sh-st"></div>
+
+    <!-- ย้ายกรอบ ดึงข้อมูล + อัปโหลด มาอยู่ตรงนี้ ต่อจาก URL -->
+    <div class="dvd"></div>
+    <h3>📥 ดึงข้อมูลจาก Google Sheets</h3>
+    <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">ดึงข้อมูลจาก Sheets กลับมาแสดงในระบบ</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn bp" onclick="loadAll()">🔄 ดึงข้อมูลทั้งหมด</button>
+      <button class="btn bo" onclick="loadNotes()">📌 ดึงหมายเหตุวัน</button>
+      <button class="btn bo bsm" onclick="debugRecordSheet()" style="color:#744210;border-color:#F6E05E;">🔍 Debug Record Sheet</button>
+    </div>
+    <pre id="debug-record-out" style="display:none;background:#1a202c;color:#68d391;padding:12px;border-radius:8px;font-size:11px;font-family:monospace;margin-top:10px;overflow-x:auto;white-space:pre-wrap;line-height:1.6;"></pre>
+    <div class="dvd"></div>
+    <h3>☁️ อัปโหลดข้อมูลในเครื่องขึ้น Google Sheets</h3>
+    <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">
+      ใช้ครั้งแรกเพื่อ Sync ข้อมูลเก่าขึ้น Sheets — ระบบจะตรวจสอบก่อนว่ารายการไหนยังไม่มีใน Sheets แล้วส่งขึ้นเฉพาะรายการที่ขาด <strong>ไม่ Sync ซ้ำ</strong> และจะล้างข้อมูลในเครื่องให้อัตโนมัติเมื่อ Sync สำเร็จ
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn bp" onclick="syncAll()" style="background:var(--p);">⬆️ Sync ขึ้น Sheets (<span id="sync-all-cnt">0</span> รายการในเครื่อง)</button>
+      <button class="btn bo bsm" onclick="clearLocalData()" style="border-color:var(--r);color:var(--r);">🗑 ล้างข้อมูลในเครื่อง</button>
+    </div>
+    <div id="load-st" style="font-size:12px;margin-top:8px;"></div>
+
     <div class="dvd"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">
       <div class="sh" style="margin:0;">📄 Apps Script (คัดลอกทั้งหมดไปวาง)</div>
@@ -393,25 +415,32 @@ function doGet(e) {
 function saveEntry(p) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(SHEET);
-  const h = ['ID','วันที่','ชื่อพนักงาน','เวลาIN','9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
+  const h = ['ID','รหัสพนักงาน','วันที่','ชื่อพนักงาน','เวลาIN','9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
   if (!sh) {
     sh = ss.insertSheet(SHEET);
     sh.appendRow(h);
     sh.getRange(1, 1, 1, h.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
   } else if (sh.getLastRow() === 0) {
-    // ชีทมีอยู่แต่ว่างเปล่า (ถูกลบข้อมูลทิ้ง) → สร้าง header ใหม่
     sh.appendRow(h);
     sh.getRange(1, 1, 1, h.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
   }
-  // ลบข้อมูลเดิมของคนนี้วันนี้ก่อน
+  // ลบข้อมูลเดิมของคนนี้วันนี้ก่อน — เช็คด้วย รหัสพนักงาน+วันที่ (col 1,2) หรือ ชื่อ+วันที่ (col 2,3)
   const data = sh.getDataRange().getValues();
+  const hdrs = data[0].map(String);
+  const ciEmpId = hdrs.indexOf('รหัสพนักงาน');
+  const ciDate  = hdrs.indexOf('วันที่');
+  const ciName  = hdrs.indexOf('ชื่อพนักงาน');
   for (let i = data.length - 1; i >= 1; i--) {
-    if (String(data[i][1]) === String(p.date) && String(data[i][2]) === String(p.name)) {
-      sh.deleteRow(i + 1);
-    }
+    const rowDate  = String(data[i][ciDate]  || '').trim();
+    const rowEmpId = String(data[i][ciEmpId] || '').trim();
+    const rowName  = String(data[i][ciName]  || '').trim();
+    const matchById   = p.empId && rowEmpId === String(p.empId) && rowDate === String(p.date);
+    const matchByName = p.name  && rowName  === String(p.name)  && rowDate === String(p.date);
+    if (matchById || matchByName) sh.deleteRow(i + 1);
   }
   sh.appendRow([
     p.id || Utilities.getUuid().substring(0, 8),
+    p.empId  || '',
     p.date,
     p.name,
     p.timeIn  || '',
@@ -631,93 +660,105 @@ function getRecords(filterDate) {
 
 // ════════════════════════════════════════════════════════
 //  syncFromRecord(date)
-//  อ่าน Record sheet → หา min/max เวลาต่อ empId+วันที่
-//  → เขียนลง Attendance sheet อัตโนมัติ (ไม่เขียนทับถ้ามีแล้ว)
-//  → คืน { saved, skipped, rows } กลับมาให้ frontend แสดงผล
+//  - ใช้ Name sheet เป็น master list (11 คน)
+//  - ดึงเวลา IN/OUT จาก Record sheet (min/max)
+//  - ถ้าไม่มีใน Record → สร้างรายการว่างไว้ (ขาด/ลา)
+//  - empId ที่อยู่ใน Record แต่ไม่อยู่ใน Name → ข้ามทิ้ง
 // ════════════════════════════════════════════════════════
 function syncFromRecord(filterDate) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 1. ดึง records (min/max) จาก Record sheet
-  const records = getRecords(filterDate);
-  if (records.length === 0) return { saved: 0, skipped: 0, rows: [], error: 'ไม่พบข้อมูลใน Record sheet สำหรับวันที่ ' + filterDate };
-
-  // 2. ดึง Name sheet เพื่อ map empId → ชื่อ1
-  const nameMap = {};  // empId → { name, order }
+  // 1. โหลด Name sheet → สร้าง masterList [{empId, name, order}]
   const nameSh = ss.getSheetByName(EMPS);
-  if (nameSh) {
-    const nd = nameSh.getDataRange().getValues();
-    if (nd.length > 1) {
-      const nh = nd[0].map(h => String(h).trim());
-      const niId   = nh.findIndex(h => ['รหัสพนักงาน','empId','รหัส'].includes(h));
-      const niName = nh.findIndex(h => ['ชื่อ1','ชื่อ','ชื่อนามสกุล'].includes(h));
-      const niOrd  = nh.findIndex(h => ['ลำดับที่','ลำดับ'].includes(h));
-      nd.slice(1).forEach(r => {
-        const id = niId >= 0 ? String(r[niId]||'').trim() : '';
-        if (!id) return;
-        nameMap[id] = {
-          name:  niName >= 0 ? String(r[niName]||'').trim() : id,
-          order: niOrd  >= 0 ? Number(r[niOrd]||9999) : 9999
-        };
-      });
-    }
-  }
+  if (!nameSh) return { saved: 0, skipped: 0, rows: [], error: 'ไม่พบ Sheet "' + EMPS + '"' };
+  const nameData = nameSh.getDataRange().getValues();
+  if (nameData.length < 2) return { saved: 0, skipped: 0, rows: [], error: 'Name sheet ว่าง' };
+  const nh = nameData[0].map(h => String(h).trim());
+  const niId   = nh.findIndex(h => ['รหัสพนักงาน','empId','รหัส'].includes(h));
+  const niName = nh.findIndex(h => ['ชื่อ1','ชื่อ'].includes(h));
+  const niOrd  = nh.findIndex(h => ['ลำดับที่','ลำดับ'].includes(h));
+  if (niId < 0 || niName < 0) return { saved: 0, skipped: 0, rows: [], error: 'ไม่พบคอลัมน์ รหัสพนักงาน หรือ ชื่อ1 ใน Name sheet' };
 
-  // 3. เตรียม Attendance sheet
-  const attH = ['ID','วันที่','ชื่อพนักงาน','เวลาIN','9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
+  const masterList = nameData.slice(1)
+    .map(r => ({
+      empId: String(r[niId]  || '').trim(),
+      name:  String(r[niName]|| '').trim(),
+      order: niOrd >= 0 ? Number(r[niOrd] || 9999) : 9999
+    }))
+    .filter(e => e.empId && e.name)
+    .sort((a, b) => a.order - b.order);
+
+  if (masterList.length === 0) return { saved: 0, skipped: 0, rows: [], error: 'ไม่มีพนักงานใน Name sheet' };
+
+  // 2. โหลด Record sheet → สร้าง recordMap {empId: {timeIn, timeOut}}
+  const recordMap = {};
+  const recList = getRecords(filterDate); // ใช้ function เดิมที่หา min/max แล้ว
+  recList.forEach(r => { recordMap[r.empId] = { timeIn: r.timeIn, timeOut: r.timeOut }; });
+
+  // 3. เตรียม Attendance sheet + header
+  const attH = ['ID','รหัสพนักงาน','วันที่','ชื่อพนักงาน','เวลาIN','9-11','13-15','15-17','เวลาOUT','สถานะ','บันทึกเมื่อ'];
   let sh = ss.getSheetByName(SHEET);
   if (!sh) {
     sh = ss.insertSheet(SHEET);
     sh.appendRow(attH);
     sh.getRange(1, 1, 1, attH.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
   } else if (sh.getLastRow() === 0) {
-    // ชีทมีอยู่แต่ว่างเปล่า → สร้าง header ใหม่
     sh.appendRow(attH);
     sh.getRange(1, 1, 1, attH.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
   }
 
-  // 4. ดึงแถวที่มีอยู่ใน Attendance เพื่อเช็ค duplicate
+  // 4. ดึง key ที่มีอยู่ใน Attendance แล้ว เช็คด้วย รหัสพนักงาน|วันที่ (แม่นยำกว่าใช้ชื่อ)
   const attData = sh.getDataRange().getValues();
   const attHdrs = attData[0].map(String);
+  const aiEmpId = attHdrs.indexOf('รหัสพนักงาน');
   const aiDate  = attHdrs.indexOf('วันที่');
   const aiName  = attHdrs.indexOf('ชื่อพนักงาน');
-  // สร้าง Set ของ "วันที่|ชื่อ" ที่มีอยู่แล้ว
   const existingKeys = new Set();
   attData.slice(1).forEach(r => {
-    const d = String(r[aiDate]||'').trim();
-    const n = String(r[aiName]||'').trim();
-    if (d && n) existingKeys.add(d + '|' + n);
+    const empId = aiEmpId >= 0 ? String(r[aiEmpId] || '').trim() : '';
+    const d     = String(r[aiDate] || '').trim();
+    const n     = String(r[aiName] || '').trim();
+    // เช็คด้วย empId|date ก่อน ถ้าไม่มี empId ให้ fallback เป็น ชื่อ|date
+    if (empId && d) existingKeys.add(empId + '|' + d);
+    if (n && d)     existingKeys.add('name|' + n + '|' + d);
   });
 
-  // 5. เขียนรายการที่ยังไม่มี
+  // 5. วน masterList → เขียน Attendance ทีละคน
   const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
   let saved = 0, skipped = 0;
   const savedRows = [];
 
-  records.forEach(rec => {
-    const info = nameMap[rec.empId] || { name: rec.empId, order: 9999 };
-    const name = info.name;
-    const key  = rec.date + '|' + name;
+  masterList.forEach(emp => {
+    // เช็ค duplicate: empId|date หรือ ชื่อ|date (กันซ้ำทั้งสองแบบ)
+    const keyById   = emp.empId + '|' + filterDate;
+    const keyByName = 'name|' + emp.name + '|' + filterDate;
+    if (existingKeys.has(keyById) || existingKeys.has(keyByName)) { skipped++; return; }
 
-    if (existingKeys.has(key)) {
-      skipped++;
-      return;
-    }
+    const rec = recordMap[emp.empId];
+    const newId = filterDate.replace(/-/g,'') + '_' + emp.empId;
 
-    const newId = rec.date.replace(/-/g,'') + '_' + rec.empId;
     sh.appendRow([
       newId,
-      rec.date,
-      name,
-      rec.timeIn  || '',
-      'อยู่', 'อยู่', 'อยู่',  // slot default
-      rec.timeOut || '',
+      emp.empId,       // เพิ่มคอลัมน์รหัสพนักงาน
+      filterDate,
+      emp.name,
+      rec ? (rec.timeIn  || '') : '',
+      'อยู่', 'อยู่', 'อยู่',
+      rec ? (rec.timeOut || '') : '',
       'normal',
       now
     ]);
-    existingKeys.add(key);
+    existingKeys.add(keyById);
+    existingKeys.add(keyByName);
     saved++;
-    savedRows.push({ empId: rec.empId, name, date: rec.date, timeIn: rec.timeIn, timeOut: rec.timeOut });
+    savedRows.push({
+      empId:   emp.empId,
+      name:    emp.name,
+      date:    filterDate,
+      timeIn:  rec ? rec.timeIn  : '',
+      timeOut: rec ? rec.timeOut : '',
+      hasRecord: !!rec
+    });
   });
 
   return { saved, skipped, rows: savedRows };
@@ -813,26 +854,6 @@ function ok(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }</pre>
     <div id="copy-ok" style="font-size:12px;color:var(--g);margin-top:6px;display:none;">✅ คัดลอกแล้ว!</div>
-  </div>
-  <div class="fc">
-    <h3>📥 ดึงข้อมูลจาก Google Sheets</h3>
-    <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">ดึงข้อมูลจาก Sheets กลับมาแสดงในระบบ</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn bp" onclick="loadAll()">🔄 ดึงข้อมูลทั้งหมด</button>
-      <button class="btn bo" onclick="loadNotes()">📌 ดึงหมายเหตุวัน</button>
-      <button class="btn bo bsm" onclick="debugRecordSheet()" style="color:#744210;border-color:#F6E05E;">🔍 Debug Record Sheet</button>
-    </div>
-    <pre id="debug-record-out" style="display:none;background:#1a202c;color:#68d391;padding:12px;border-radius:8px;font-size:11px;font-family:monospace;margin-top:10px;overflow-x:auto;white-space:pre-wrap;line-height:1.6;"></pre>
-    <div class="dvd"></div>
-    <h3>☁️ อัปโหลดข้อมูลในเครื่องขึ้น Google Sheets</h3>
-    <p style="font-size:13px;color:var(--mt);margin-bottom:10px;">
-      ใช้ครั้งแรกเพื่อ Sync ข้อมูลเก่าขึ้น Sheets — ระบบจะตรวจสอบก่อนว่ารายการไหนยังไม่มีใน Sheets แล้วส่งขึ้นเฉพาะรายการที่ขาด <strong>ไม่ Sync ซ้ำ</strong> และจะล้างข้อมูลในเครื่องให้อัตโนมัติเมื่อ Sync สำเร็จ
-    </p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <button class="btn bp" onclick="syncAll()" style="background:var(--p);">⬆️ Sync ขึ้น Sheets (<span id="sync-all-cnt">0</span> รายการในเครื่อง)</button>
-      <button class="btn bo bsm" onclick="clearLocalData()" style="border-color:var(--r);color:var(--r);">🗑 ล้างข้อมูลในเครื่อง</button>
-    </div>
-    <div id="load-st" style="font-size:12px;margin-top:8px;"></div>
   </div>
 </div>
 
@@ -1363,8 +1384,17 @@ async function bulkCreateAll(){
 
     if(saved===0 && skipped>0){
       toast(`มีรายการครบทุกคนใน Attendance แล้ว (${skipped} คน) ✓`);
+    } else if(saved===0){
+      toast('❌ ไม่มีรายการถูกสร้าง — ตรวจสอบ Name sheet และ Deploy GS ใหม่','r');
     } else {
-      toast(`✅ บันทึกลง Attendance แล้ว ${saved} คน${skipped>0?' (ข้าม '+skipped+' คนที่มีแล้ว)':''}`);
+      const hasTime = rows.filter(r=>r.hasRecord).length;
+      const noTime  = rows.filter(r=>!r.hasRecord).length;
+      let msg = `✅ บันทึกลง Attendance แล้ว ${saved} คน`;
+      if(hasTime) msg += ` (มีเวลา ${hasTime} คน`;
+      if(noTime)  msg += `, ไม่มีใน Record ${noTime} คน รอกรอก)`;
+      else if(hasTime) msg += `)`;
+      if(skipped) msg += ` · ข้าม ${skipped} คนที่มีแล้ว`;
+      toast(msg);
     }
 
     // refresh entries ในเครื่องให้ตรงกับ Sheets
@@ -1479,7 +1509,9 @@ function renderWeekly(){
     let row=`<tr><td class="wnum">${idx+1}</td><td class="wname">${emp.name}</td>`;
     days.forEach(d=>{
       const ds2=dstr(d),dn=dayNotes[ds2]||{};
-      const en=entries.find(x=>(x.empId===emp.empId||(x.empId===undefined&&normN(x.name)===normN(emp.name)))&&x.date===ds2);
+      // หา entry ด้วย empId ก่อน ถ้าไม่เจอค่อย fallback ด้วยชื่อ (รองรับ Attendance เก่าที่ไม่มี empId)
+      const en = entries.find(x=> x.empId===emp.empId && x.date===ds2)
+              || entries.find(x=> !x.empId && normN(x.name)===normN(emp.name) && x.date===ds2);
       if(dn.type==='holiday'){
         row+=`<td colspan="5" class="whol">🎌 ${dn.note||'วันหยุด'}</td>`;
       } else if(dn.type==='nocheck'){
@@ -1571,7 +1603,7 @@ function renderMonthly(){
     <div class="sc"><div class="sl">⏰ มาสาย</div><div class="sn" style="color:var(--o);">${lt}</div></div>
     <div class="sc"><div class="sl">🌴 ลา</div><div class="sn" style="color:var(--p);">${lv}</div></div>`;
   document.getElementById('mon-body').innerHTML=emps.map((emp,i)=>{
-    const ee=me.filter(e=>normN(e.name)===normN(emp.name));
+    const ee=me.filter(e=> e.empId===emp.empId || normN(e.name)===normN(emp.name));
     const cs=s=>ee.filter(e=>e.status===s).length;
     const norm=ee.filter(e=>['normal','late'].includes(e.status)).length;
     const ins=ee.filter(e=>e.timeIn&&/^\d{1,2}:\d{2}$/.test(e.timeIn)).map(e=>e.timeIn);
@@ -2059,14 +2091,29 @@ async function refreshFromSheets(){
       console.log('[Sheets] sample row:', JSON.stringify(d.rows[0]));
       const sheetsEntries=[];
       d.rows.forEach(r=>{
-        const empId  = getField(r,'รหัสพนักงาน','empId');
-        const name1  = getField(r,'ชื่อ1','name','ชื่อ');
+        // อ่าน empId จากคอลัมน์ รหัสพนักงาน (อาจว่างถ้าเป็น Attendance เก่า)
+        let empId = getField(r,'รหัสพนักงาน','empId');
+        // อ่านชื่อจากคอลัมน์ ชื่อพนักงาน (Attendance sheet) ไม่ใช่ ชื่อ1
+        const nameInSheet = getField(r,'ชื่อพนักงาน','ชื่อ1','name','ชื่อ');
         const rawDate= getField(r,'วันที่','date');
         const date   = parseSheetDate(rawDate);
-        if(!empId||!date||date.length<8) return;
+        if(!date||date.length<8) return;
+        // ถ้าไม่มี empId ให้ lookup จาก emps โดยใช้ชื่อ
+        if(!empId && nameInSheet){
+          const found = emps.find(e=>e.name===nameInSheet||normN(e.name)===normN(nameInSheet));
+          if(found) empId = found.empId;
+        }
+        // ถ้ายังไม่มี empId เลย ให้ใช้ชื่อแทน (backward compat)
+        if(!empId && !nameInSheet) return;
+        const resolvedEmpId = empId || nameInSheet;
+        // หาชื่อที่ถูกต้องจาก emps (ใช้ empId lookup ก่อน)
+        const empObj = empId ? emps.find(e=>e.empId===empId) : emps.find(e=>e.name===nameInSheet||normN(e.name)===normN(nameInSheet));
+        const resolvedName = empObj ? empObj.name : nameInSheet;
         sheetsEntries.push({
-          id:      getField(r,'ID','id') || `${date}_${empId}`,
-          empId, name:name1, date,
+          id:      getField(r,'ID','id') || `${date}_${resolvedEmpId}`,
+          empId:   resolvedEmpId,
+          name:    resolvedName,
+          date,
           timeIn:  parseSheetTime(getField(r,'เวลาIN','IN')),
           timeOut: parseSheetTime(getField(r,'เวลาOUT','OUT')),
           status:  getField(r,'สถานะ','status') || 'normal',
