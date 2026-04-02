@@ -98,6 +98,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .wabs{background:#FED7D7;color:#c53030;font-weight:700;font-size:11px;}
 .wlv{background:#FEEBC8;color:#744210;font-size:11px;}
 .wsk{background:#DBEAFE;color:#1e3a8a;font-size:11px;}
+.wpersonal{background:#FEF3C7;color:#92400E;font-size:11px;}
 .wfh{background:#E0F2FE;color:#0369a1;font-size:11px;}
 .woffsite{background:#F0FDF4;color:#166534;font-size:11px;}
 .whol{background:#EDE9FE;color:#4c1d95;font-size:11px;font-style:italic;}
@@ -212,6 +213,9 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
           <option value="absent">❌ ขาดงาน</option>
           <option value="leave">🌴 ลาพักร้อน</option>
           <option value="sick">🤒 ลาป่วย</option>
+          <option value="personal">📋 ลากิจ</option>
+          <option value="wfh">🏠 Work from home</option>
+          <option value="offsite">🚗 ออกนอกสถานที่</option>
         </select>
       </div>
     </div>
@@ -262,6 +266,11 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <div class="lgdi"><div class="lgdd" style="background:#BEE3F8;"></div>ศ</div>
       <div class="lgdi"><div class="lgdd" style="background:#E9D8FD;"></div>ส</div>
       <div class="lgdi"><div class="lgdd" style="background:#FED7D7;"></div>ขาดงาน</div>
+      <div class="lgdi"><div class="lgdd" style="background:#FEEBC8;"></div>พักร้อน</div>
+      <div class="lgdi"><div class="lgdd" style="background:#DBEAFE;"></div>ป่วย</div>
+      <div class="lgdi"><div class="lgdd" style="background:#FEF3C7;"></div>ลากิจ</div>
+      <div class="lgdi"><div class="lgdd" style="background:#E0F2FE;"></div>WFH</div>
+      <div class="lgdi"><div class="lgdd" style="background:#F0FDF4;"></div>ออกนอก</div>
       <div class="lgdi"><div class="lgdd" style="background:#EDE9FE;"></div>หยุด/ไม่เช็ค</div>
       <div class="lgdi"><div class="lgdd" style="background:#fffbf0;border:1px solid #e2d9c5;"></div>ไม่มีข้อมูล</div>
     </div>
@@ -287,7 +296,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
   <div class="sh">สรุปรายบุคคล</div>
   <div class="tw" style="margin-bottom:16px;">
     <table class="tbl">
-      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>มาทำงาน</th><th>ขาดงาน</th><th>พักร้อน</th><th>ป่วย</th><th>สาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม./วัน</th></tr></thead>
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>มาทำงาน</th><th>ขาดงาน</th><th>พักร้อน</th><th>ป่วย</th><th>ลากิจ</th><th>สาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม./วัน</th></tr></thead>
       <tbody id="mon-body"></tbody>
     </table>
   </div>
@@ -1136,7 +1145,7 @@ function renderEmps(){
 
 function onStatChange(){
   const s=document.getElementById('ep-stat').value;
-  const dis=['absent','leave','sick'].includes(s);
+  const dis=['absent','leave','sick','personal','wfh','offsite'].includes(s);
   document.getElementById('ep-in').disabled=dis;
   document.getElementById('ep-out').disabled=dis;
   document.querySelectorAll('.slt').forEach(b=>{b.disabled=dis;if(dis)b.classList.remove('on');});
@@ -1162,7 +1171,7 @@ async function addEntry(){
   const emp=findEmp(empId);
   const name1=emp?emp.name:empId;
   const stat=document.getElementById('ep-stat').value;
-  const notime=['absent','leave','sick'].includes(stat);
+  const notime=['absent','leave','sick','personal','wfh','offsite'].includes(stat);
 
   // auto fill IN/OUT จาก Record sheet
   let ti=document.getElementById('ep-in').value;
@@ -1227,8 +1236,8 @@ function delEntry(id){
 }
 
 function renderToday(){
-  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย'};
-  const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3'};
+  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
+  const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
 
   let te,modeLabel='';
   if(lastAddedIds.length>0){
@@ -1261,8 +1270,8 @@ function renderToday(){
 }
 
 function renderRow(e, i, editMode=false){
-  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย'};
-  const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3'};
+  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
+  const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
   const id=e.id.replace(/'/g,"\'");
 
   if(editMode){
@@ -1284,6 +1293,9 @@ function renderRow(e, i, editMode=false){
         <option value="absent"${e.status==='absent'?' selected':''}>❌ ขาดงาน</option>
         <option value="leave"${e.status==='leave'?' selected':''}>🌴 พักร้อน</option>
         <option value="sick"${e.status==='sick'?' selected':''}>🤒 ป่วย</option>
+        <option value="personal"${e.status==='personal'?' selected':''}>📋 ลากิจ</option>
+        <option value="wfh"${e.status==='wfh'?' selected':''}>🏠 WFH</option>
+        <option value="offsite"${e.status==='offsite'?' selected':''}>🚗 ออกนอกสถานที่</option>
       </select></td>
       <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
         <button class="btn-save" onclick="saveEdit('${id}')">💾 บันทึก</button>
@@ -1346,7 +1358,7 @@ function saveEdit(id){
   const s1=document.getElementById('eds1-'+id)?.classList.contains('on');
   const s2=document.getElementById('eds2-'+id)?.classList.contains('on');
   const s3=document.getElementById('eds3-'+id)?.classList.contains('on');
-  const notime=['absent','leave','sick'].includes(status);
+  const notime=['absent','leave','sick','personal','wfh','offsite'].includes(status);
   entries[idx]={...entries[idx],
     empId, name, date,
     timeIn: notime?'':timeIn,
@@ -1538,6 +1550,7 @@ function renderWeekly(){
               <option value="absent">❌ ขาดงาน</option>
               <option value="leave">🌴 ลาพักร้อน</option>
               <option value="sick">🤒 ลาป่วย</option>
+              <option value="personal">📋 ลากิจ</option>
               <option value="wfh">🏠 Work from home</option>
               <option value="offsite">🚗 ออกนอกสถานที่</option>
             </select>
@@ -1546,13 +1559,15 @@ function renderWeekly(){
       } else if(en.status==='absent'){
         row+=`<td colspan="5" class="wabs">ขาดงาน</td>`;
       } else if(en.status==='leave'){
-        row+=`<td colspan="5" class="wlv">ลาพักร้อน</td>`;
+        row+=`<td colspan="5" class="wlv">🌴 ลาพักร้อน</td>`;
       } else if(en.status==='sick'){
-        row+=`<td colspan="5" class="wsk">ลาป่วย</td>`;
+        row+=`<td colspan="5" class="wsk">🤒 ลาป่วย</td>`;
+      } else if(en.status==='personal'){
+        row+=`<td colspan="5" class="wpersonal">📋 ลากิจ</td>`;
       } else if(en.status==='wfh'){
         row+=`<td colspan="5" style="background:#E0F2FE;color:#0369a1;font-size:11px;">🏠 WFH</td>`;
       } else if(en.status==='offsite'){
-        row+=`<td colspan="5" style="background:#F0FDF4;color:#166534;font-size:11px;">🚗 ออกนอก</td>`;
+        row+=`<td colspan="5" class="woffsite">🚗 ออกนอก</td>`;
       } else {
         // slot: 'อยู่' = มา, 'ไม่' = ไม่มา, '' = ไม่ได้ระบุ (ถือว่ามา ถ้ามีเวลา IN/OUT)
         const hasTime = en.timeIn || en.timeOut;
@@ -1610,7 +1625,7 @@ function renderMonthly(){
   const me=entries.filter(e=>e.date.startsWith(pfx));
   const ab=me.filter(e=>e.status==='absent').length;
   const lt=me.filter(e=>e.status==='late').length;
-  const lv=me.filter(e=>e.status==='leave'||e.status==='sick').length;
+  const lv=me.filter(e=>e.status==='leave'||e.status==='sick'||e.status==='personal').length;
   const wd=new Set(me.filter(e=>e.status!=='absent').map(e=>e.date)).size;
   document.getElementById('stat-grid').innerHTML=`
     <div class="sc"><div class="sl">👥 พนักงาน</div><div class="sn" style="color:var(--b);">${emps.length}</div></div>
@@ -1621,7 +1636,7 @@ function renderMonthly(){
   document.getElementById('mon-body').innerHTML=emps.map((emp,i)=>{
     const ee=me.filter(e=> e.empId===emp.empId || normN(e.name)===normN(emp.name));
     const cs=s=>ee.filter(e=>e.status===s).length;
-    const norm=ee.filter(e=>['normal','late'].includes(e.status)).length;
+    const norm=ee.filter(e=>['normal','late','wfh','offsite'].includes(e.status)).length;
     const ins=ee.filter(e=>e.timeIn&&/^\d{1,2}:\d{2}$/.test(e.timeIn)).map(e=>e.timeIn);
     const outs=ee.filter(e=>e.timeOut&&/^\d{1,2}:\d{2}$/.test(e.timeOut)).map(e=>e.timeOut);
     const hrs=ee.filter(e=>e.timeIn&&e.timeOut&&/^\d{1,2}:\d{2}$/.test(e.timeIn)&&/^\d{1,2}:\d{2}$/.test(e.timeOut)).map(e=>{
@@ -1631,7 +1646,7 @@ function renderMonthly(){
     return `<tr><td class="tdn">${i+1}</td><td class="tdl">${emp.name}</td>
       <td><span class="bdg bg3">${norm}</span></td>
       <td><span class="bdg br3">${cs('absent')}</span></td>
-      <td>${cs('leave')}</td><td>${cs('sick')}</td>
+      <td>${cs('leave')}</td><td>${cs('sick')}</td><td>${cs('personal')}</td>
       <td>${cs('late')>0?`<span class="bdg bo3">${cs('late')}</span>`:'0'}</td>
       <td style="color:var(--g);font-weight:700;">${ins.length?avgt(ins):'—'}</td>
       <td style="color:var(--r);font-weight:700;">${outs.length?avgt(outs):'—'}</td>
