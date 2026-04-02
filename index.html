@@ -424,25 +424,32 @@ function saveEntry(p) {
     sh.appendRow(h);
     sh.getRange(1, 1, 1, h.length).setFontWeight('bold').setBackground('#1D9E75').setFontColor('white');
   }
-  // ลบข้อมูลเดิมของคนนี้วันนี้ก่อน — เช็คด้วย รหัสพนักงาน+วันที่ (col 1,2) หรือ ชื่อ+วันที่ (col 2,3)
   const data = sh.getDataRange().getValues();
   const hdrs = data[0].map(String);
+  const ciId    = hdrs.indexOf('ID');
   const ciEmpId = hdrs.indexOf('รหัสพนักงาน');
   const ciDate  = hdrs.indexOf('วันที่');
   const ciName  = hdrs.indexOf('ชื่อพนักงาน');
+  const empId   = String(p.empId || '').trim();
+  const name    = String(p.name  || p.name1 || '').trim();  // รองรับทั้ง name และ name1
+  const date    = String(p.date  || '').trim();
+
+  // ลบแถวเดิม — เช็ค 3 ระดับ: ID ตรง > empId+date ตรง > ชื่อ+date ตรง
   for (let i = data.length - 1; i >= 1; i--) {
-    const rowDate  = String(data[i][ciDate]  || '').trim();
+    const rowId    = String(data[i][ciId]    || '').trim();
     const rowEmpId = String(data[i][ciEmpId] || '').trim();
+    const rowDate  = String(data[i][ciDate]  || '').trim();
     const rowName  = String(data[i][ciName]  || '').trim();
-    const matchById   = p.empId && rowEmpId === String(p.empId) && rowDate === String(p.date);
-    const matchByName = p.name  && rowName  === String(p.name)  && rowDate === String(p.date);
-    if (matchById || matchByName) sh.deleteRow(i + 1);
+    const matchId     = p.id    && rowId    === String(p.id);
+    const matchEmpId  = empId   && rowEmpId === empId  && rowDate === date;
+    const matchName   = name    && rowName  === name   && rowDate === date;
+    if (matchId || matchEmpId || matchName) sh.deleteRow(i + 1);
   }
   sh.appendRow([
     p.id || Utilities.getUuid().substring(0, 8),
-    p.empId  || '',
-    p.date,
-    p.name,
+    empId,
+    date,
+    name,
     p.timeIn  || '',
     p.slot1   || '',
     p.slot2   || '',
@@ -1545,12 +1552,17 @@ function renderWeekly(){
       } else if(en.status==='offsite'){
         row+=`<td colspan="5" style="background:#F0FDF4;color:#166534;font-size:11px;">🚗 ออกนอก</td>`;
       } else {
-        const sc1=en.slot1==='ไม่'?'wno':'wp';
-        const sc2=en.slot2==='ไม่'?'wno':'wp';
-        const sc3=en.slot3==='ไม่'?'wno':'wp';
+        // slot: 'อยู่' = มา, 'ไม่' = ไม่มา, '' = ไม่ได้ระบุ (ถือว่ามา ถ้ามีเวลา IN/OUT)
+        const hasTime = en.timeIn || en.timeOut;
+        const s1 = en.slot1 || (hasTime ? 'อยู่' : '');
+        const s2 = en.slot2 || (hasTime ? 'อยู่' : '');
+        const s3 = en.slot3 || (hasTime ? 'อยู่' : '');
+        const sc1 = s1==='ไม่'?'wno':'wp';
+        const sc2 = s2==='ไม่'?'wno':'wp';
+        const sc3 = s3==='ไม่'?'wno':'wp';
         row+=`<td class="win">${noTimeSel(en,'in')}</td>
-          <td class="${sc1}">${en.slot1||'—'}</td><td class="${sc2}">${en.slot2||'—'}</td>
-          <td class="${sc3}">${en.slot3||'—'}</td><td class="wout">${noTimeSel(en,'out')}</td>`;
+          <td class="${sc1}">${s1||'—'}</td><td class="${sc2}">${s2||'—'}</td>
+          <td class="${sc3}">${s3||'—'}</td><td class="wout">${noTimeSel(en,'out')}</td>`;
       }
     });
     return row+'</tr>';
@@ -1736,12 +1748,12 @@ function syncEntry(entry){
   document.getElementById('sync-st').innerHTML='⏳ กำลัง sync...';
   callGS({action:'save',
     id:      entry.id,
-    empId:   entry.empId||entry.name,
-    name1:   entry.name||'',
+    empId:   entry.empId||'',
+    name:    entry.name||'',
     date:    entry.date,
     timeIn:  entry.timeIn||'',
     timeOut: entry.timeOut||'',
-    status:  entry.status,
+    status:  entry.status||'normal',
     slot1:   entry.slot1||'',
     slot2:   entry.slot2||'',
     slot3:   entry.slot3||''
@@ -1783,8 +1795,8 @@ async function syncAll(){
   for(let i=0;i<toSync.length;i++){
     const e=toSync[i];
     st.textContent=`กำลัง Sync ${i+1}/${toSync.length}... (${e.name} ${e.date})`;
-    const d=await callGS({action:'save',id:e.id,empId:e.empId||e.name,name1:e.name||'',date:e.date,
-      timeIn:e.timeIn||'',timeOut:e.timeOut||'',status:e.status,
+    const d=await callGS({action:'save',id:e.id,empId:e.empId||'',name:e.name||'',date:e.date,
+      timeIn:e.timeIn||'',timeOut:e.timeOut||'',status:e.status||'normal',
       slot1:e.slot1||'',slot2:e.slot2||'',slot3:e.slot3||''});
     if(d.success) ok++; else fail++;
     await new Promise(r=>setTimeout(r,300));
