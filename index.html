@@ -1215,14 +1215,59 @@ async function bulkCreateAll(){
   closeModal('bulk-modal');
   if(new Date(date+'T12:00:00').getDay()===0){toast('วันอาทิตย์ไม่ทำการ','r');return;}
 
-  // ดึง Record ทั้งวันนั้นจาก Sheets ทีเดียว
+  toast('⏳ กำลังตรวจสอบข้อมูลจาก Sheets...');
+
+  // ดึง Record + Attendance จาก Sheets ก่อนเสมอ (เพื่อให้ existing ถูกต้อง)
   let dayRecords=[];
   if(shUrl){
-    try{ const d=await callGS({action:'getRecords',date}); dayRecords=d.records||[]; }catch(e){}
+    try{
+      // ดึง Record (เวลาเข้า-ออก) และ Attendance (ที่บันทึกแล้ว) พร้อมกัน
+      const [recRes, attRes] = await Promise.all([
+        callGS({action:'getRecords', date}),
+        callGS({action:'getAll'})
+      ]);
+      dayRecords = recRes.records||[];
+      // sync Attendance จาก Sheets เข้า entries ในเครื่องก่อน
+      if(attRes.rows && attRes.rows.length>0){
+        attRes.rows.forEach(r=>{
+          const eId = getField(r,'รหัสพนักงาน','empId') || '';
+          const rawDate = getField(r,'วันที่','date');
+          const d = parseSheetDate(rawDate);
+          if(!eId || !d || d!==date) return;
+          // ถ้ายังไม่มีใน entries ให้เพิ่ม (ป้องกัน duplicate)
+          if(!entries.find(e=>(e.empId===eId||e.name===eId)&&e.date===d)){
+            entries.push({
+              id: getField(r,'ID','id')||`${d}_${eId}`,
+              empId:eId, name:getField(r,'ชื่อพนักงาน','ชื่อ1','ชื่อ',eId),
+              date:d,
+              timeIn:parseSheetTime(getField(r,'เวลาIN','IN')),
+              timeOut:parseSheetTime(getField(r,'เวลาOUT','OUT')),
+              status:getField(r,'สถานะ','status')||'normal',
+              slot1:getField(r,'9-11'), slot2:getField(r,'13-15'), slot3:getField(r,'15-17'),
+              _fromSheets:true
+            });
+          }
+        });
+        saveEnt();
+      }
+    }catch(e){ console.warn('bulkCreateAll fetch error:',e); }
   }
 
-  const existing=entries.filter(e=>e.date===date).map(e=>e.empId||e.name);
-  const toCreate=emps.filter(emp=>!existing.includes(emp.empId));
+  // ตรวจสอบ existing จาก entries ที่ sync แล้ว
+  // ใช้ Set ของ empId ที่มีรายการวันนั้น (กรองค่าว่าง/undefined ออก)
+  const existingIds = new Set(
+    entries
+      .filter(e => e.date === date && (e.empId||e.name))
+      .map(e => String(e.empId||e.name).trim())
+      .filter(Boolean)
+  );
+
+  // emps ที่ยังไม่มีรายการ — ถ้า empId ว่างให้ข้าม
+  const toCreate = emps.filter(emp => {
+    const id = String(emp.empId||'').trim();
+    if(!id) return false;  // ข้าม emp ที่ไม่มี empId (ป้องกัน bug เดิม)
+    return !existingIds.has(id);
+  });
   if(toCreate.length===0){toast('มีรายการครบทุกคนแล้ว ✓');return;}
 
   const newEntries=[];
