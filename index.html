@@ -436,7 +436,11 @@ function saveEntry(p) {
   if (empId && date && ciEmpId >= 0 && ciDate >= 0) {
     for (let i = data.length - 1; i >= 1; i--) {
       const rowEmpId = String(data[i][ciEmpId] || '').trim();
-      const rowDate  = String(data[i][ciDate]  || '').trim();
+      // คอลัมน์วันที่อาจเป็น Date object หรือ string → แปลงให้เป็น yyyy-MM-dd เสมอ
+      const rawDate = data[i][ciDate];
+      const rowDate = rawDate instanceof Date
+        ? Utilities.formatDate(rawDate, 'Asia/Bangkok', 'yyyy-MM-dd')
+        : String(rawDate || '').trim().substring(0, 10);
       if (rowEmpId === empId && rowDate === date) sh.deleteRow(i + 1);
     }
   }
@@ -719,9 +723,11 @@ function syncFromRecord(filterDate) {
   const existingKeys = new Set();
   attData.slice(1).forEach(r => {
     const empId = aiEmpId >= 0 ? String(r[aiEmpId] || '').trim() : '';
-    const d     = String(r[aiDate] || '').trim();
-    const n     = String(r[aiName] || '').trim();
-    // เช็คด้วย empId|date ก่อน ถ้าไม่มี empId ให้ fallback เป็น ชื่อ|date
+    const rawDate = r[aiDate];
+    const d = rawDate instanceof Date
+      ? Utilities.formatDate(rawDate, 'Asia/Bangkok', 'yyyy-MM-dd')
+      : String(rawDate || '').trim().substring(0, 10);
+    const n = String(r[aiName] || '').trim();
     if (empId && d) existingKeys.add(empId + '|' + d);
     if (n && d)     existingKeys.add('name|' + n + '|' + d);
   });
