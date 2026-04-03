@@ -370,6 +370,16 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <button class="btn bo" id="sh-debug" onclick="debugSheets()" style="display:none;" title="ดูข้อมูลดิบจาก Sheets เพื่อ debug">🔍 Debug</button>
     </div>
     <div class="cst" id="sh-st"></div>
+    <!-- Share link box -->
+    <div id="share-box" style="display:none;margin-top:10px;background:#F0FDF4;border:1px solid #9AE6B4;border-radius:10px;padding:11px 14px;">
+      <div style="font-size:11px;font-weight:700;color:#085041;margin-bottom:7px;">🔗 ลิงค์แชร์ให้ทีม — เปิดลิงค์นี้จะเชื่อมต่อ Sheets อัตโนมัติ ไม่ต้องกรอก URL เอง</div>
+      <div style="display:flex;gap:7px;align-items:center;">
+        <input type="text" id="share-url-txt" readonly
+          style="flex:1;font-size:11px;padding:6px 9px;border-radius:7px;border:1px solid #9AE6B4;background:#fff;color:#085041;font-family:monospace;overflow:hidden;text-overflow:ellipsis;">
+        <button class="btn bp bsm" onclick="copyShareUrl()" id="share-copy-btn">📋 คัดลอก</button>
+      </div>
+      <div id="share-copy-ok" style="font-size:11px;color:var(--g);margin-top:5px;display:none;">✅ คัดลอกแล้ว! วางลิงค์นี้ใน Line ให้ทีมได้เลย</div>
+    </div>
 
     <!-- ย้ายกรอบ ดึงข้อมูล + อัปโหลด มาอยู่ตรงนี้ ต่อจาก URL -->
     <div class="dvd"></div>
@@ -1017,6 +1027,12 @@ function init(){
     document.getElementById('sh-test').style.display='';
     document.getElementById('sh-debug').style.display='';
     document.getElementById('conn-pill').style.display='';
+    // แสดงกล่อง share link
+    const shareBox=document.getElementById('share-box');
+    const shareInput=document.getElementById('share-url-txt');
+    const base=window.location.origin+window.location.pathname;
+    shareInput.value=base+'?gs='+encodeURIComponent(shUrl);
+    shareBox.style.display='';
     callGS({action:'getEmps'}).then(de=>{
       if(de.emps&&de.emps.length>0){
         emps=de.emps.map((e,i)=>({
@@ -1862,6 +1878,27 @@ function connectSheets(){
   document.getElementById('sh-st').innerHTML='<span style="color:var(--g);">✅ บันทึก URL แล้ว — กด 🧪 ทดสอบ เพื่อยืนยัน</span>';
   document.getElementById('sh-test').style.display='';
   document.getElementById('conn-pill').style.display='';
+  // แสดงกล่อง share link
+  const shareBox=document.getElementById('share-box');
+  const shareInput=document.getElementById('share-url-txt');
+  const base=window.location.origin+window.location.pathname;
+  shareInput.value=base+'?gs='+encodeURIComponent(url);
+  shareBox.style.display='';
+}
+
+function copyShareUrl(){
+  const txt=document.getElementById('share-url-txt').value;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const ok=document.getElementById('share-copy-ok');
+    ok.style.display='';
+    setTimeout(()=>ok.style.display='none',3000);
+  }).catch(()=>{
+    document.getElementById('share-url-txt').select();
+    document.execCommand('copy');
+    const ok=document.getElementById('share-copy-ok');
+    ok.style.display='';
+    setTimeout(()=>ok.style.display='none',3000);
+  });
 }
 
 async function testConn(){
