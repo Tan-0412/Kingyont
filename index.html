@@ -2289,17 +2289,25 @@ async function refreshFromSheets(){
         const empObj = empId ? emps.find(e=>e.empId===empId) : emps.find(e=>e.name===nameInSheet||normN(e.name)===normN(nameInSheet));
         const resolvedName = empObj ? empObj.name : nameInSheet;
         const tIn = parseSheetTime(getField(r,'เวลาIN','IN'));
+        const tOut = parseSheetTime(getField(r,'เวลาOUT','OUT'));
+        // normalize slot: ถ้า Sheets ส่งค่าว่างหรือไม่ใช่ 'อยู่'/'ไม่'/'-'
+        // ให้ default เป็น 'อยู่' เมื่อมีเวลา IN หรือ OUT (กรณีข้อมูลเก่าที่ไม่ได้บันทึก slot)
+        function normSlot(raw, hasTime){
+          if(raw==='อยู่'||raw==='ไม่'||raw==='-') return raw;
+          return hasTime ? 'อยู่' : '';
+        }
+        const hasTime = !!(tIn||tOut);
         sheetsEntries.push({
           id:      getField(r,'ID','id') || `${date}_${resolvedEmpId}`,
           empId:   resolvedEmpId,
           name:    resolvedName,
           date,
           timeIn:  tIn,
-          timeOut: parseSheetTime(getField(r,'เวลาOUT','OUT')),
+          timeOut: tOut,
           status:  getField(r,'สถานะ','status') || 'normal',
-          slot1:   getField(r,'9-11'),
-          slot2:   getField(r,'13-15'),
-          slot3:   getField(r,'15-17'),
+          slot1:   normSlot(getField(r,'9-11'), hasTime),
+          slot2:   normSlot(getField(r,'13-15'), hasTime),
+          slot3:   normSlot(getField(r,'15-17'), hasTime),
           _fromSheets: true,
         });
       });
