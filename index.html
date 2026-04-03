@@ -1375,20 +1375,14 @@ function renderRow(e, i, editMode=false){
   const draftBadge = isDraft ? '<span style="font-size:10px;background:#e2e8f0;color:#718096;padding:1px 6px;border-radius:8px;margin-left:4px;">รอกรอก</span>' : '';
   const inStr = e.timeIn ? e.timeIn.substring(0,5) : '—';
   const outStr = e.timeOut ? e.timeOut.substring(0,5) : '—';
-  // fallback slot: ถ้าไม่มีค่าแต่มีเวลา IN/OUT ให้ถือว่า "อยู่" (เหมือน weekly view)
-  const hasTime = !!(e.timeIn || e.timeOut);
-  const notime2 = ['absent','leave','sick','personal','wfh','offsite'].includes(e.status);
-  const s1disp = e.slot1 || ((!notime2 && hasTime) ? 'อยู่' : '—');
-  const s2disp = e.slot2 || ((!notime2 && hasTime) ? 'อยู่' : '—');
-  const s3disp = e.slot3 || ((!notime2 && hasTime) ? 'อยู่' : '—');
   return `<tr id="row-${e.id}" style="${rowStyle}">
     <td class="tdn">${i+1}</td>
     <td class="tdl" style="${isDraft?'color:#a0aec0;':''}">${e.name}${empBadge}${draftBadge}</td>
     <td style="font-size:11px;color:${isDraft?'#cbd5e0':'var(--mt)'};">${fmtDate(e.date)}</td>
     <td class="${isDraft?'':'tdi'}" style="${isDraft?'color:#cbd5e0;':''}">${inStr}</td>
-    <td class="${isDraft?'':''}${!isDraft&&s1disp==='อยู่'?'tdok':'tdno'}">${s1disp}</td>
-    <td class="${!isDraft&&s2disp==='อยู่'?'tdok':'tdno'}">${s2disp}</td>
-    <td class="${!isDraft&&s3disp==='อยู่'?'tdok':'tdno'}">${s3disp}</td>
+    <td class="${isDraft?'':''}${!isDraft&&e.slot1==='อยู่'?'tdok':'tdno'}">${e.slot1||'—'}</td>
+    <td class="${!isDraft&&e.slot2==='อยู่'?'tdok':'tdno'}">${e.slot2||'—'}</td>
+    <td class="${!isDraft&&e.slot3==='อยู่'?'tdok':'tdno'}">${e.slot3||'—'}</td>
     <td class="${isDraft?'':'tdo'}" style="${isDraft?'color:#cbd5e0;':''}">${outStr}</td>
     <td><span class="bdg ${isDraft?'':''}${SC[e.status]}" style="${isDraft?'opacity:.5;':''}">${SM[e.status]}</span></td>
     <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
@@ -2234,10 +2228,11 @@ function parseSheetTime(raw){
 
 // หา key จาก object โดยไม่สนใจ whitespace และ case
 function getField(obj, ...keys){
+  const normDash = s => s.replace(/\u2013|\u2014/g, '-'); // en-dash/em-dash → hyphen
   for(const k of keys){
     if(k in obj && obj[k]!==null && obj[k]!==undefined) return String(obj[k]);
-    // ลองหา key ที่ trim แล้วตรงกัน
-    const found=Object.keys(obj).find(ok=>ok.trim()===k.trim());
+    // ลองหา key ที่ trim แล้วตรงกัน (normalize dash ด้วย)
+    const found=Object.keys(obj).find(ok=>normDash(ok.trim())===normDash(k.trim()));
     if(found) return String(obj[found]||'');
   }
   return '';
@@ -2274,6 +2269,7 @@ async function refreshFromSheets(){
 
     if(d.rows && d.rows.length>0){
       console.log('[Sheets] sample row:', JSON.stringify(d.rows[0]));
+      console.log('[Sheets] column keys:', Object.keys(d.rows[0]).map(k=>`"${k}"(${[...k].map(c=>c.charCodeAt(0).toString(16)).join(',')})`).join(' | '));
       const sheetsEntries=[];
       d.rows.forEach(r=>{
         // อ่าน empId จากคอลัมน์ รหัสพนักงาน (อาจว่างถ้าเป็น Attendance เก่า)
@@ -2311,9 +2307,9 @@ async function refreshFromSheets(){
           timeIn:  tIn,
           timeOut: tOut,
           status:  getField(r,'สถานะ','status') || 'normal',
-          slot1:   normSlot(getField(r,'9-11'), hasTime),
-          slot2:   normSlot(getField(r,'13-15'), hasTime),
-          slot3:   normSlot(getField(r,'15-17'), hasTime),
+          slot1:   normSlot(getField(r,'9-11','9\u201311','9-11 น.','9\u201311 น.'), hasTime),
+          slot2:   normSlot(getField(r,'13-15','13\u201315','13-15 น.','13\u201315 น.'), hasTime),
+          slot3:   normSlot(getField(r,'15-17','15\u201317','15-17 น.','15\u201317 น.'), hasTime),
           _fromSheets: true,
         });
       });
