@@ -105,9 +105,10 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .wnc{background:#E2E8F0;color:#4a5568;font-size:11px;font-style:italic;}
 .wlate{color:#EF9F27;font-size:10px;font-weight:700;display:block;}
 /* stats */
-.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;}
-.sc{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:13px;text-align:center;}
-.sn{font-size:26px;font-weight:700;margin-top:3px;}.sl{font-size:11px;color:var(--mt);font-weight:600;}
+.sgrid{margin-bottom:16px;}
+.sc{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;text-align:center;}
+.sn{font-size:22px;font-weight:500;margin-top:2px;}.sl{font-size:11px;color:var(--mt);font-weight:500;}
+.sc2grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
 /* badge */
 .bdg{display:inline-block;padding:3px 8px;border-radius:11px;font-size:11px;font-weight:700;}
 .bg3{background:var(--gl);color:var(--gd);}.br3{background:var(--rl);color:#c53030;}
@@ -673,8 +674,8 @@ function getRecords(filterDate) {
     return {
       empId:   g.empId,
       date:    g.date,
-      timeIn:  sorted[0],                    // เวลาน้อยสุด = IN (สีเหลือง)
-      timeOut: sorted.length > 1 ? sorted[sorted.length - 1] : sorted[0]  // เวลาสูงสุด = OUT (สีเขียว)
+      timeIn:  sorted[0],                              // เวลาน้อยสุด = IN
+      timeOut: sorted.length > 1 ? sorted[sorted.length - 1] : ''  // มีแค่ครั้งเดียว → OUT ว่าง
     };
   });
 }
@@ -760,15 +761,22 @@ function syncFromRecord(filterDate) {
     const rec = recordMap[emp.empId];
     const newId = filterDate.replace(/-/g,'') + '_' + emp.empId;
 
+    // ตรวจสอบสถานะสาย: ถ้า timeIn > 09:00 → สาย
+    const LATE_THRESHOLD = '09:00';
+    let status = 'normal';
+    if (rec && rec.timeIn) {
+      status = rec.timeIn > LATE_THRESHOLD ? 'late' : 'normal';
+    }
+
     sh.appendRow([
       newId,
-      emp.empId,       // เพิ่มคอลัมน์รหัสพนักงาน
+      emp.empId,
       filterDate,
       emp.name,
       rec ? (rec.timeIn  || '') : '',
       'อยู่', 'อยู่', 'อยู่',
       rec ? (rec.timeOut || '') : '',
-      'normal',
+      status,
       now
     ]);
     existingKeys.add(keyById);
@@ -946,6 +954,7 @@ function ok(data) {
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const EMP_DEF=['มิลินา(มิ้น)','วรนาฎ(อ้อ)','เสาวลักษณ์','สชาติ(บอย)','หนึ่งฤทัย','พิทนันท์(ดิน่า)','ภัณฑิรา(เข้ม)','สลักษ์','ศักดิ์นรินทร์','ธนาวรรธน์','ธนพล(วี)'];
 const MTH=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -1687,14 +1696,73 @@ function renderMonthly(){
   const me=entries.filter(e=>e.date.startsWith(pfx));
   const ab=me.filter(e=>e.status==='absent').length;
   const lt=me.filter(e=>e.status==='late').length;
-  const lv=me.filter(e=>e.status==='leave'||e.status==='sick'||e.status==='personal').length;
+  const lv=me.filter(e=>e.status==='leave').length;
+  const sk=me.filter(e=>e.status==='sick').length;
+  const ps=me.filter(e=>e.status==='personal').length;
+  const wf=me.filter(e=>e.status==='wfh').length;
+  const os=me.filter(e=>e.status==='offsite').length;
+  const totalLv=lv+sk+ps;
   const wd=new Set(me.filter(e=>e.status!=='absent').map(e=>e.date)).size;
+  const norm2=me.filter(e=>['normal','late'].includes(e.status)).length;
   document.getElementById('stat-grid').innerHTML=`
-    <div class="sc"><div class="sl">👥 พนักงาน</div><div class="sn" style="color:var(--b);">${emps.length}</div></div>
-    <div class="sc"><div class="sl">📅 วันทำงาน</div><div class="sn" style="color:var(--g);">${wd}</div></div>
-    <div class="sc"><div class="sl">❌ ขาดงาน</div><div class="sn" style="color:var(--r);">${ab}</div></div>
-    <div class="sc"><div class="sl">⏰ มาสาย</div><div class="sn" style="color:var(--o);">${lt}</div></div>
-    <div class="sc"><div class="sl">🌴 ลา</div><div class="sn" style="color:var(--p);">${lv}</div></div>`;
+    <div class="sc2grid">
+      <div class="sc"><div class="sl">👥 พนักงาน</div><div class="sn" style="color:var(--b);">${emps.length}</div></div>
+      <div class="sc"><div class="sl">มาทำงาน</div><div class="sn" style="color:var(--g);">${norm2}</div></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--mt);">
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#E24B4A;display:inline-block;"></span>ขาดงาน</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#7F77DD;display:inline-block;"></span>พักร้อน</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#378ADD;display:inline-block;"></span>ป่วย</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#92400E;display:inline-block;"></span>ลากิจ</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#0369a1;display:inline-block;"></span>WFH</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#166534;display:inline-block;"></span>ออกนอก</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#EF9F27;display:inline-block;"></span>สาย</span>
+    </div>
+    <div style="position:relative;width:100%;height:180px;"><canvas id="stat-chart"></canvas></div>`;
+
+  setTimeout(()=>{
+    const ctx=document.getElementById('stat-chart');
+    if(!ctx) return;
+    if(window._statChart) window._statChart.destroy();
+    window._statChart=new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels:['ขาดงาน','พักร้อน','ป่วย','ลากิจ','WFH','ออกนอก','สาย'],
+        datasets:[{
+          data:[ab,lv,sk,ps,wf,os,lt],
+          backgroundColor:['#E24B4A','#7F77DD','#378ADD','#92400E','#0369a1','#166534','#EF9F27'],
+          borderRadius:5,
+          borderSkipped:false,
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.y+' ครั้ง'}}},
+        scales:{
+          x:{grid:{display:false},ticks:{font:{size:11},color:'#718096'}},
+          y:{display:false,grid:{display:false},min:0},
+        },
+      },
+      plugins:[{
+        afterDatasetsDraw(chart){
+          const c2=chart.ctx;
+          chart.data.datasets.forEach((ds,di)=>{
+            chart.getDatasetMeta(di).data.forEach((bar,i)=>{
+              if(ds.data[i]===0) return;
+              c2.save();
+              c2.fillStyle='#4a5568';
+              c2.font='500 11px sans-serif';
+              c2.textAlign='center';
+              c2.textBaseline='bottom';
+              c2.fillText(ds.data[i],bar.x,bar.y-3);
+              c2.restore();
+            });
+          });
+        }
+      }]
+    });
+  },50);
   document.getElementById('mon-body').innerHTML=emps.map((emp,i)=>{
     const ee=me.filter(e=> e.empId===emp.empId || normN(e.name)===normN(emp.name));
     const cs=s=>ee.filter(e=>e.status===s).length;
@@ -2214,12 +2282,13 @@ async function refreshFromSheets(){
         // หาชื่อที่ถูกต้องจาก emps (ใช้ empId lookup ก่อน)
         const empObj = empId ? emps.find(e=>e.empId===empId) : emps.find(e=>e.name===nameInSheet||normN(e.name)===normN(nameInSheet));
         const resolvedName = empObj ? empObj.name : nameInSheet;
+        const tIn = parseSheetTime(getField(r,'เวลาIN','IN'));
         sheetsEntries.push({
           id:      getField(r,'ID','id') || `${date}_${resolvedEmpId}`,
           empId:   resolvedEmpId,
           name:    resolvedName,
           date,
-          timeIn:  parseSheetTime(getField(r,'เวลาIN','IN')),
+          timeIn:  tIn,
           timeOut: parseSheetTime(getField(r,'เวลาOUT','OUT')),
           status:  getField(r,'สถานะ','status') || 'normal',
           slot1:   getField(r,'9-11'),
