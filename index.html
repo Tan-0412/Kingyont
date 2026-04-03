@@ -1954,7 +1954,11 @@ async function syncAll(){
   const toSync=entries.filter(e=>!sheetKeys.has(`${e.date}|${e.empId||e.name}`));
 
   if(toSync.length===0){
-    setSt(`<span style="color:var(--g);">✅ ข้อมูลครบแล้ว ไม่มีรายการใหม่</span>`);
+    entries=[];saveEnt();
+    lastAddedIds=[];saveLastIds();
+    renderToday();updateSyncCnt();
+    setSt(`<span style="color:var(--g);">✅ ข้อมูลครบแล้ว ล้างรายการในเครื่องแล้ว</span>`);
+    toast('Sync เรียบร้อย ✓');
     return;
   }
 
@@ -2228,11 +2232,10 @@ function parseSheetTime(raw){
 
 // หา key จาก object โดยไม่สนใจ whitespace และ case
 function getField(obj, ...keys){
-  const normDash = s => s.replace(/\u2013|\u2014/g, '-'); // en-dash/em-dash → hyphen
   for(const k of keys){
     if(k in obj && obj[k]!==null && obj[k]!==undefined) return String(obj[k]);
-    // ลองหา key ที่ trim แล้วตรงกัน (normalize dash ด้วย)
-    const found=Object.keys(obj).find(ok=>normDash(ok.trim())===normDash(k.trim()));
+    // ลองหา key ที่ trim แล้วตรงกัน
+    const found=Object.keys(obj).find(ok=>ok.trim()===k.trim());
     if(found) return String(obj[found]||'');
   }
   return '';
@@ -2269,7 +2272,6 @@ async function refreshFromSheets(){
 
     if(d.rows && d.rows.length>0){
       console.log('[Sheets] sample row:', JSON.stringify(d.rows[0]));
-      console.log('[Sheets] column keys:', Object.keys(d.rows[0]).map(k=>`"${k}"(${[...k].map(c=>c.charCodeAt(0).toString(16)).join(',')})`).join(' | '));
       const sheetsEntries=[];
       d.rows.forEach(r=>{
         // อ่าน empId จากคอลัมน์ รหัสพนักงาน (อาจว่างถ้าเป็น Attendance เก่า)
@@ -2307,9 +2309,9 @@ async function refreshFromSheets(){
           timeIn:  tIn,
           timeOut: tOut,
           status:  getField(r,'สถานะ','status') || 'normal',
-          slot1:   normSlot(getField(r,'9-11','9\u201311','9-11 น.','9\u201311 น.'), hasTime),
-          slot2:   normSlot(getField(r,'13-15','13\u201315','13-15 น.','13\u201315 น.'), hasTime),
-          slot3:   normSlot(getField(r,'15-17','15\u201317','15-17 น.','15\u201317 น.'), hasTime),
+          slot1:   normSlot(getField(r,'9-11'), hasTime),
+          slot2:   normSlot(getField(r,'13-15'), hasTime),
+          slot3:   normSlot(getField(r,'15-17'), hasTime),
           _fromSheets: true,
         });
       });
