@@ -242,6 +242,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <input type="date" id="view-date" style="font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid var(--bd);font-family:inherit;">
       <button class="btn bo bsm" onclick="loadDateEntries()">🔍 ดูวันที่เลือก</button>
       <button class="btn bo bsm" onclick="viewToday()">📅 วันนี้</button>
+      <button class="btn bo bsm" onclick="syncAll()" style="border-color:#7F77DD;color:#7F77DD;" title="Sync ข้อมูลในเครื่องขึ้น Sheets (ตรวจสอบซ้ำก่อนส่งเสมอ)">⬆️ Sync</button>
       <div id="sync-st" style="font-size:12px;"></div>
     </div>
   </div>
@@ -965,7 +966,14 @@ const WCL=['','whm','wht','whw','whth','whf','whs'];
 let entries=JSON.parse(localStorage.getItem('a_ent')||'[]');
 let emps=JSON.parse(localStorage.getItem('a_emp')||JSON.stringify(EMP_DEF.map(n=>({name:n,pos:'พนักงาน'}))));
 let dayNotes=JSON.parse(localStorage.getItem('a_dn')||'{}');
-const HARDCODED_URL = ''; // <-- วาง URL ของคุณตรงนี้
+const HARDCODED_URL = ''; // <-- วาง URL ของคุณตรงนี้ (optional)
+// รับ URL จาก query parameter ?gs=... → เก็บลง localStorage อัตโนมัติ
+(function(){
+  const qsGs = new URLSearchParams(window.location.search).get('gs');
+  if(qsGs && qsGs.includes('script.google.com')){
+    localStorage.setItem('a_url', qsGs);
+  }
+})();
 let shUrl=localStorage.getItem('a_url')||HARDCODED_URL;
 let slots={s1:true,s2:true,s3:true};
 let wkOff=0;
@@ -1927,7 +1935,9 @@ function syncEntry(entry){
 async function syncAll(){
   if(!shUrl){alert('กรุณาเชื่อมต่อ Google Sheets ก่อน');return;}
   const st=document.getElementById('load-st');
-  st.textContent='กำลังตรวจสอบข้อมูลใน Sheets...';
+  const st2=document.getElementById('sync-st');
+  const setSt=(html)=>{ st.innerHTML=html; if(st2) st2.innerHTML=html; };
+  setSt('⏳ กำลังตรวจสอบ...');
 
   // ดึงข้อมูลที่มีอยู่ใน Sheets มาก่อน เพื่อเทียบ
   const existing=await callGS({action:'getAll'});
@@ -1944,7 +1954,7 @@ async function syncAll(){
   const toSync=entries.filter(e=>!sheetKeys.has(`${e.date}|${e.empId||e.name}`));
 
   if(toSync.length===0){
-    st.innerHTML=`<span style="color:var(--g);">✅ ข้อมูลทั้งหมด ${entries.length} รายการอยู่ใน Sheets แล้ว ไม่มีรายการใหม่ที่ต้อง Sync</span>`;
+    setSt(`<span style="color:var(--g);">✅ ข้อมูลครบแล้ว ไม่มีรายการใหม่</span>`);
     return;
   }
 
@@ -1953,7 +1963,7 @@ async function syncAll(){
   let ok=0,fail=0;
   for(let i=0;i<toSync.length;i++){
     const e=toSync[i];
-    st.textContent=`กำลัง Sync ${i+1}/${toSync.length}... (${e.name} ${e.date})`;
+    setSt(`⏳ Sync ${i+1}/${toSync.length}...`);
     const d=await callGS({action:'save',id:e.id,empId:e.empId||'',name:e.name||'',date:e.date,
       timeIn:e.timeIn||'',timeOut:e.timeOut||'',status:e.status||'normal',
       slot1:e.slot1||'',slot2:e.slot2||'',slot3:e.slot3||''});
@@ -1962,19 +1972,15 @@ async function syncAll(){
   }
 
   if(fail===0){
-    // Sync สำเร็จทั้งหมด → เพิ่มเข้า lastAddedIds และล้าง localStorage
     const syncedIds=toSync.map(e=>e.id);
     lastAddedIds=[...syncedIds,...lastAddedIds].slice(0,50);
     saveLastIds();
     renderToday();
-
-    // ล้าง localStorage เฉพาะส่วนข้อมูล entries (คง emps, dayNotes, url ไว้)
     entries=[];saveEnt();updateSyncCnt();
-
-    st.innerHTML=`<span style="color:var(--g);">✅ Sync สำเร็จ ${ok} รายการ — ข้อมูลในเครื่องถูกล้างแล้ว (Sheets คือแหล่งข้อมูลหลัก) กด <strong>🔄 ดึงข้อมูลทั้งหมด</strong> เพื่อโหลดกลับมาได้ตลอด</span>`;
-    toast('Sync และล้างข้อมูลในเครื่องเรียบร้อย ✓');
+    setSt(`<span style="color:var(--g);">✅ Sync สำเร็จ ${ok} รายการ</span>`);
+    toast('Sync เรียบร้อย ✓');
   } else {
-    st.innerHTML=`<span style="color:var(--o);">⚠️ Sync สำเร็จ ${ok} รายการ / ล้มเหลว ${fail} รายการ — ข้อมูลในเครื่องยังไม่ถูกล้าง กรุณาลองใหม่</span>`;
+    setSt(`<span style="color:var(--o);">⚠️ Sync สำเร็จ ${ok} / ล้มเหลว ${fail}</span>`);
   }
 }
 
