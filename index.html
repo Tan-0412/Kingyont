@@ -976,7 +976,7 @@ const WCL=['','whm','wht','whw','whth','whf','whs'];
 let entries=JSON.parse(localStorage.getItem('a_ent')||'[]');
 let emps=JSON.parse(localStorage.getItem('a_emp')||JSON.stringify(EMP_DEF.map(n=>({name:n,pos:'พนักงาน'}))));
 let dayNotes=JSON.parse(localStorage.getItem('a_dn')||'{}');
-const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbxJBM2bT5MD-_T3qzkM9MVlXpYB8X4yVr_SUT0jyJsbnuyTrPhDUDnHt5DVtVivq0ve/exec'; // URL ฝังตายตัว
+const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbxJBM2bT5MD-_T3qzkM9MVlXpYB8X4yVr_SUT0jyJsbnuyTrPhDUDnHt5DVtVivq0ve/exec';
 // รับ URL จาก query parameter ?gs=... → เก็บลง localStorage อัตโนมัติ
 (function(){
   const qsGs = new URLSearchParams(window.location.search).get('gs');
@@ -1033,20 +1033,16 @@ function init(){
     const base=window.location.origin+window.location.pathname;
     shareInput.value=base+'?gs='+encodeURIComponent(shUrl);
     shareBox.style.display='';
-    // ทดสอบการเชื่อมต่ออัตโนมัติ
     testConn();
   } else if(HARDCODED_URL){
-    shUrl=HARDCODED_URL;
-    localStorage.setItem('a_url',HARDCODED_URL);
+    shUrl=HARDCODED_URL;localStorage.setItem('a_url',HARDCODED_URL);
     document.getElementById('sh-url').value=HARDCODED_URL;
     document.getElementById('sh-test').style.display='';
     document.getElementById('sh-debug').style.display='';
     document.getElementById('conn-pill').style.display='';
-    const shareBox2=document.getElementById('share-box');
-    const shareInput2=document.getElementById('share-url-txt');
-    const base2=window.location.origin+window.location.pathname;
-    shareInput2.value=base2+'?gs='+encodeURIComponent(HARDCODED_URL);
-    shareBox2.style.display='';
+    const sb2=document.getElementById('share-box'),si2=document.getElementById('share-url-txt');
+    const b2=window.location.origin+window.location.pathname;
+    si2.value=b2+'?gs='+encodeURIComponent(HARDCODED_URL);sb2.style.display='';
     testConn();
   }
 }
@@ -1396,9 +1392,9 @@ function renderRow(e, i, editMode=false){
     <td class="tdl" style="${isDraft?'color:#a0aec0;':''}">${e.name}${empBadge}${draftBadge}</td>
     <td style="font-size:11px;color:${isDraft?'#cbd5e0':'var(--mt)'};">${fmtDate(e.date)}</td>
     <td class="${isDraft?'':'tdi'}" style="${isDraft?'color:#cbd5e0;':''}">${inStr}</td>
-    <td class="${isDraft?'':''}${!isDraft&&normSlotDisp(e.slot1,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot1,e)||'—'}</td>
-    <td class="${!isDraft&&normSlotDisp(e.slot2,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot2,e)||'—'}</td>
-    <td class="${!isDraft&&normSlotDisp(e.slot3,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot3,e)||'—'}</td>
+    <td class="${isDraft?'':''}${!isDraft&&normSlotDisp(e.slot1,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot1,e)}</td>
+    <td class="${!isDraft&&normSlotDisp(e.slot2,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot2,e)}</td>
+    <td class="${!isDraft&&normSlotDisp(e.slot3,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot3,e)}</td>
     <td class="${isDraft?'':'tdo'}" style="${isDraft?'color:#cbd5e0;':''}">${outStr}</td>
     <td><span class="bdg ${isDraft?'':''}${SC[e.status]}" style="${isDraft?'opacity:.5;':''}">${SM[e.status]}</span></td>
     <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
@@ -1637,8 +1633,7 @@ function renderWeekly(){
           </div>
         </td>`;
       } else if(['absent','leave','sick','personal','wfh','offsite'].includes(en.status)){
-        // สถานะไม่ปกติ: IN/OUT แสดงตามปกติ, ไฮไลท์เฉพาะ 3 ช่องกลาง (9-11, 13-15, 15-17)
-        const hasTime = en.timeIn || en.timeOut;
+        // สถานะไม่ปกติ: IN/OUT แยก, ไฮไลท์เฉพาะ 3 ช่องกลาง
         const SB = {
           absent:  {cls:'wabs',      lbl:'❌ ขาดงาน',  style:''},
           leave:   {cls:'wlv',       lbl:'🌴 พักร้อน', style:''},
@@ -1649,18 +1644,17 @@ function renderWeekly(){
         };
         const sb = SB[en.status]||{cls:'',lbl:en.status,style:''};
         const cellStyle = sb.style ? ` style="${sb.style}"` : '';
-        if(!hasTime){
-          row+=`<td class="win" style="color:var(--mt);font-size:11px;">—</td>`;
-          row+=`<td colspan="3" class="${sb.cls}"${cellStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
-          row+=`<td class="wout" style="color:var(--mt);font-size:11px;">—</td>`;
-        } else {
-          const badge=`<span style="display:block;font-size:9px;font-weight:700;margin-bottom:1px;">${sb.lbl}</span>`;
-          row+=`<td class="win" style="vertical-align:middle;">${badge}${en.timeIn||'—'}</td>`;
-          row+=`<td colspan="3" class="${sb.cls}"${cellStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
-          row+=`<td class="wout">${en.timeOut||'—'}</td>`;
-        }
+        const inCell = en.timeIn
+          ? `<td class="win">${en.timeIn}<span style="display:block;font-size:9px;font-weight:700;">${sb.lbl}</span></td>`
+          : `<td style="color:var(--mt);font-size:11px;">—</td>`;
+        const outCell = en.timeOut
+          ? `<td class="wout">${en.timeOut}</td>`
+          : `<td style="color:var(--mt);font-size:11px;">—</td>`;
+        row += inCell;
+        row += `<td colspan="3" class="${sb.cls}"${cellStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
+        row += outCell;
       } else {
-        // slot: 'อยู่'=มา, 'ไม่'=ไม่มา, ''หรือ'-'=ไม่ได้ระบุ → default 'อยู่' ถ้ามี IN/OUT
+        // slot: ใช้ normSlotDisp — '-'/'' → 'อยู่' ถ้ามีเวลา, ไม่มีเวลา → 'ไม่'
         const s1 = normSlotDisp(en.slot1, en);
         const s2 = normSlotDisp(en.slot2, en);
         const s3 = normSlotDisp(en.slot3, en);
@@ -1677,8 +1671,9 @@ function renderWeekly(){
 }
 
 function normSlotDisp(v, en){
+  // '-' หรือ '' → default 'อยู่' ถ้ามีเวลา IN หรือ OUT, ไม่มีเวลา → 'ไม่'
   if(v && v!=='-') return v;
-  return (en.timeIn||en.timeOut) ? 'อยู่' : '';
+  return (en.timeIn||en.timeOut) ? 'อยู่' : 'ไม่';
 }
 
 function noTimeSel(en, field){
