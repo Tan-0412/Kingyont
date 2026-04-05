@@ -976,7 +976,7 @@ const WCL=['','whm','wht','whw','whth','whf','whs'];
 let entries=JSON.parse(localStorage.getItem('a_ent')||'[]');
 let emps=JSON.parse(localStorage.getItem('a_emp')||JSON.stringify(EMP_DEF.map(n=>({name:n,pos:'พนักงาน'}))));
 let dayNotes=JSON.parse(localStorage.getItem('a_dn')||'{}');
-const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbxJBM2bT5MD-_T3qzkM9MVlXpYB8X4yVr_SUT0jyJsbnuyTrPhDUDnHt5DVtVivq0ve/exec'; // URL ฝังตายตัว
+const HARDCODED_URL = ''; // <-- วาง URL ของคุณตรงนี้ (optional)
 // รับ URL จาก query parameter ?gs=... → เก็บลง localStorage อัตโนมัติ
 (function(){
   const qsGs = new URLSearchParams(window.location.search).get('gs');
@@ -1033,21 +1033,21 @@ function init(){
     const base=window.location.origin+window.location.pathname;
     shareInput.value=base+'?gs='+encodeURIComponent(shUrl);
     shareBox.style.display='';
-    // ทดสอบการเชื่อมต่ออัตโนมัติ
-    testConn();
+    callGS({action:'getEmps'}).then(de=>{
+      if(de.emps&&de.emps.length>0){
+        emps=de.emps.map((e,i)=>({
+          empId: String(e['รหัสพนักงาน']||e['empId']||e['รหัส']||'').trim(),
+          name:  String(e['ชื่อ1']||e['ชื่อ']||e['ชื่อนามสกุล']||'').trim(),
+          pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
+          dept:  String(e['ฝ่าย']||'').trim(),
+          order: Number(e['ลำดับที่']||e['ลำดับ']||i+1)
+        })).filter(e=>e.empId&&e.name)
+           .sort((a,b)=>a.order-b.order);
+        saveEmps();buildEmpSel();
+      }
+    }).catch(()=>{});
   } else if(HARDCODED_URL){
-    shUrl=HARDCODED_URL;
-    localStorage.setItem('a_url',HARDCODED_URL);
     document.getElementById('sh-url').value=HARDCODED_URL;
-    document.getElementById('sh-test').style.display='';
-    document.getElementById('sh-debug').style.display='';
-    document.getElementById('conn-pill').style.display='';
-    const shareBox2=document.getElementById('share-box');
-    const shareInput2=document.getElementById('share-url-txt');
-    const base2=window.location.origin+window.location.pathname;
-    shareInput2.value=base2+'?gs='+encodeURIComponent(HARDCODED_URL);
-    shareBox2.style.display='';
-    testConn();
   }
 }
 
@@ -1396,9 +1396,9 @@ function renderRow(e, i, editMode=false){
     <td class="tdl" style="${isDraft?'color:#a0aec0;':''}">${e.name}${empBadge}${draftBadge}</td>
     <td style="font-size:11px;color:${isDraft?'#cbd5e0':'var(--mt)'};">${fmtDate(e.date)}</td>
     <td class="${isDraft?'':'tdi'}" style="${isDraft?'color:#cbd5e0;':''}">${inStr}</td>
-    <td class="${isDraft?'':''}${!isDraft&&e.slot1==='อยู่'?'tdok':'tdno'}">${e.slot1||'—'}</td>
-    <td class="${!isDraft&&e.slot2==='อยู่'?'tdok':'tdno'}">${e.slot2||'—'}</td>
-    <td class="${!isDraft&&e.slot3==='อยู่'?'tdok':'tdno'}">${e.slot3||'—'}</td>
+    <td class="${isDraft?'':''}${!isDraft&&normSlotDisp(e.slot1,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot1,e)||'—'}</td>
+    <td class="${!isDraft&&normSlotDisp(e.slot2,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot2,e)||'—'}</td>
+    <td class="${!isDraft&&normSlotDisp(e.slot3,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot3,e)||'—'}</td>
     <td class="${isDraft?'':'tdo'}" style="${isDraft?'color:#cbd5e0;':''}">${outStr}</td>
     <td><span class="bdg ${isDraft?'':''}${SC[e.status]}" style="${isDraft?'opacity:.5;':''}">${SM[e.status]}</span></td>
     <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
@@ -1664,11 +1664,10 @@ function renderWeekly(){
             <td class="wout">${en.timeOut||'—'}</td>`;
         }
       } else {
-        // slot: 'อยู่' = มา, 'ไม่' = ไม่มา, '' = ไม่ได้ระบุ (ถือว่ามา ถ้ามีเวลา IN/OUT)
-        const hasTime = en.timeIn || en.timeOut;
-        const s1 = en.slot1 || (hasTime ? 'อยู่' : '');
-        const s2 = en.slot2 || (hasTime ? 'อยู่' : '');
-        const s3 = en.slot3 || (hasTime ? 'อยู่' : '');
+        // slot: 'อยู่'=มา, 'ไม่'=ไม่มา, ''หรือ'-'=ไม่ได้ระบุ → default 'อยู่' ถ้ามี IN/OUT
+        const s1 = normSlotDisp(en.slot1, en);
+        const s2 = normSlotDisp(en.slot2, en);
+        const s3 = normSlotDisp(en.slot3, en);
         const sc1 = s1==='ไม่'?'wno':'wp';
         const sc2 = s2==='ไม่'?'wno':'wp';
         const sc3 = s3==='ไม่'?'wno':'wp';
@@ -1679,6 +1678,12 @@ function renderWeekly(){
     });
     return row+'</tr>';
   }).join('');
+}
+
+function normSlotDisp(v, en){
+  // '-' หรือ '' → default 'อยู่' ถ้ามีเวลา IN หรือ OUT
+  if(v && v!=='-') return v;
+  return (en.timeIn||en.timeOut) ? 'อยู่' : '';
 }
 
 function noTimeSel(en, field){
