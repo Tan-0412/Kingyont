@@ -976,7 +976,7 @@ const WCL=['','whm','wht','whw','whth','whf','whs'];
 let entries=JSON.parse(localStorage.getItem('a_ent')||'[]');
 let emps=JSON.parse(localStorage.getItem('a_emp')||JSON.stringify(EMP_DEF.map(n=>({name:n,pos:'พนักงาน'}))));
 let dayNotes=JSON.parse(localStorage.getItem('a_dn')||'{}');
-const HARDCODED_URL = ''; // <-- วาง URL ของคุณตรงนี้ (optional)
+const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbxJBM2bT5MD-_T3qzkM9MVlXpYB8X4yVr_SUT0jyJsbnuyTrPhDUDnHt5DVtVivq0ve/exec'; // URL ฝังตายตัว
 // รับ URL จาก query parameter ?gs=... → เก็บลง localStorage อัตโนมัติ
 (function(){
   const qsGs = new URLSearchParams(window.location.search).get('gs');
@@ -1033,21 +1033,21 @@ function init(){
     const base=window.location.origin+window.location.pathname;
     shareInput.value=base+'?gs='+encodeURIComponent(shUrl);
     shareBox.style.display='';
-    callGS({action:'getEmps'}).then(de=>{
-      if(de.emps&&de.emps.length>0){
-        emps=de.emps.map((e,i)=>({
-          empId: String(e['รหัสพนักงาน']||e['empId']||e['รหัส']||'').trim(),
-          name:  String(e['ชื่อ1']||e['ชื่อ']||e['ชื่อนามสกุล']||'').trim(),
-          pos:   String(e['ตำแหน่ง']||'พนักงาน').trim(),
-          dept:  String(e['ฝ่าย']||'').trim(),
-          order: Number(e['ลำดับที่']||e['ลำดับ']||i+1)
-        })).filter(e=>e.empId&&e.name)
-           .sort((a,b)=>a.order-b.order);
-        saveEmps();buildEmpSel();
-      }
-    }).catch(()=>{});
+    // ทดสอบการเชื่อมต่ออัตโนมัติ
+    testConn();
   } else if(HARDCODED_URL){
+    shUrl=HARDCODED_URL;
+    localStorage.setItem('a_url',HARDCODED_URL);
     document.getElementById('sh-url').value=HARDCODED_URL;
+    document.getElementById('sh-test').style.display='';
+    document.getElementById('sh-debug').style.display='';
+    document.getElementById('conn-pill').style.display='';
+    const shareBox2=document.getElementById('share-box');
+    const shareInput2=document.getElementById('share-url-txt');
+    const base2=window.location.origin+window.location.pathname;
+    shareInput2.value=base2+'?gs='+encodeURIComponent(HARDCODED_URL);
+    shareBox2.style.display='';
+    testConn();
   }
 }
 
@@ -1637,31 +1637,27 @@ function renderWeekly(){
           </div>
         </td>`;
       } else if(['absent','leave','sick','personal','wfh','offsite'].includes(en.status)){
-        // สถานะไม่ปกติ — ตรวจว่ามีเวลา IN/OUT ไหม (กรณีลาครึ่งวัน/WFH บางส่วน)
+        // สถานะไม่ปกติ: IN/OUT แสดงตามปกติ, ไฮไลท์เฉพาะ 3 ช่องกลาง (9-11, 13-15, 15-17)
         const hasTime = en.timeIn || en.timeOut;
         const SB = {
-          absent:  {cls:'wabs',    lbl:'ขาดงาน'},
-          leave:   {cls:'wlv',     lbl:'🌴 พักร้อน'},
-          sick:    {cls:'wsk',     lbl:'🤒 ป่วย'},
-          personal:{cls:'wpersonal',lbl:'📋 ลากิจ'},
-          wfh:     {cls:'',        lbl:'🏠 WFH',     style:'background:#E0F2FE;color:#0369a1;'},
-          offsite: {cls:'woffsite', lbl:'🚗 ออกนอก'},
+          absent:  {cls:'wabs',      lbl:'❌ ขาดงาน',  style:''},
+          leave:   {cls:'wlv',       lbl:'🌴 พักร้อน', style:''},
+          sick:    {cls:'wsk',       lbl:'🤒 ป่วย',     style:''},
+          personal:{cls:'wpersonal', lbl:'📋 ลากิจ',   style:''},
+          wfh:     {cls:'wfh',       lbl:'🏠 WFH',      style:'background:#E0F2FE;color:#0369a1;'},
+          offsite: {cls:'woffsite',  lbl:'🚗 ออกนอก',  style:''},
         };
-        const sb = SB[en.status]||{cls:'',lbl:en.status};
+        const sb = SB[en.status]||{cls:'',lbl:en.status,style:''};
+        const cellStyle = sb.style ? ` style="${sb.style}"` : '';
         if(!hasTime){
-          // ไม่มีเวลาเลย → colspan ทับทั้ง 5 คอลัมน์ตามเดิม
-          const styleAttr = sb.style ? ` style="${sb.style}"` : '';
-          row+=`<td colspan="5" class="${sb.cls}"${styleAttr}>${sb.lbl}</td>`;
+          row+=`<td class="win" style="color:var(--mt);font-size:11px;">—</td>`;
+          row+=`<td colspan="3" class="${sb.cls}"${cellStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
+          row+=`<td class="wout" style="color:var(--mt);font-size:11px;">—</td>`;
         } else {
-          // มีเวลา → แสดงตามปกติ แต่ badge เล็กๆ อยู่บน IN
-          const s1=en.slot1||'อยู่', s2=en.slot2||'อยู่', s3=en.slot3||'อยู่';
-          const sc1=s1==='ไม่'?'wno':'wp', sc2=s2==='ไม่'?'wno':'wp', sc3=s3==='ไม่'?'wno':'wp';
-          const badgeStyle = sb.style||'';
-          const badge=`<span class="wlate ${sb.cls}" style="display:block;font-size:9px;font-weight:700;margin-bottom:1px;${badgeStyle}">${sb.lbl}</span>`;
-          row+=`<td class="win" style="vertical-align:middle;">${badge}${en.timeIn||'—'}</td>
-            <td class="${sc1}">${s1}</td><td class="${sc2}">${s2}</td>
-            <td class="${sc3}">${s3}</td>
-            <td class="wout">${en.timeOut||'—'}</td>`;
+          const badge=`<span style="display:block;font-size:9px;font-weight:700;margin-bottom:1px;">${sb.lbl}</span>`;
+          row+=`<td class="win" style="vertical-align:middle;">${badge}${en.timeIn||'—'}</td>`;
+          row+=`<td colspan="3" class="${sb.cls}"${cellStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
+          row+=`<td class="wout">${en.timeOut||'—'}</td>`;
         }
       } else {
         // slot: 'อยู่'=มา, 'ไม่'=ไม่มา, ''หรือ'-'=ไม่ได้ระบุ → default 'อยู่' ถ้ามี IN/OUT
@@ -1681,7 +1677,6 @@ function renderWeekly(){
 }
 
 function normSlotDisp(v, en){
-  // '-' หรือ '' → default 'อยู่' ถ้ามีเวลา IN หรือ OUT
   if(v && v!=='-') return v;
   return (en.timeIn||en.timeOut) ? 'อยู่' : '';
 }
