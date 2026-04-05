@@ -210,6 +210,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <div class="fld"><label>สถานะ</label>
         <select id="ep-stat" onchange="onStatChange()">
           <option value="normal">✅ ปกติ</option>
+          <option value="forgot">📝 ลืมสแกน</option>
           <option value="late">⏰ มาสาย</option>
           <option value="absent">❌ ขาดงาน</option>
           <option value="leave">🌴 ลาพักร้อน</option>
@@ -1205,22 +1206,20 @@ async function addEntry(){
   const emp=findEmp(empId);
   const name1=emp?emp.name:empId;
   const stat=document.getElementById('ep-stat').value;
-  const notime=['absent','leave','sick','personal','wfh','offsite'].includes(stat);
-
-  // auto fill IN/OUT จาก Record sheet
+  // auto fill IN/OUT จาก Record sheet (ทุกสถานะ — ห้ามลบเวลา)
   let ti=document.getElementById('ep-in').value;
   let to_=document.getElementById('ep-out').value;
-  if(!notime && shUrl){
+  if(shUrl){
     const rec=await getRecordForEmp(empId,date);
     if(rec){ ti=rec.timeIn||ti; to_=rec.timeOut||to_; }
   }
 
   const id=`${date}_${empId}_${Date.now()}`;
   const entry={id,empId,name:name1,date,status:stat,
-    timeIn:notime?'':ti,timeOut:notime?'':to_,
-    slot1:notime?'-':(slots.s1?'อยู่':'ไม่'),
-    slot2:notime?'-':(slots.s2?'อยู่':'ไม่'),
-    slot3:notime?'-':(slots.s3?'อยู่':'ไม่'),
+    timeIn:ti, timeOut:to_,
+    slot1:slots.s1?'อยู่':'ไม่',
+    slot2:slots.s2?'อยู่':'ไม่',
+    slot3:slots.s3?'อยู่':'ไม่',
   };
   const oldEntry=entries.find(e=>e.empId===empId&&e.date===date);
   if(oldEntry) lastAddedIds=lastAddedIds.filter(x=>x!==oldEntry.id);
@@ -1270,8 +1269,8 @@ function delEntry(id){
 }
 
 function renderToday(filterDate){
-  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
-  const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
+  const SM={normal:'✅ ปกติ',forgot:'📝 ลืมสแกน',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:' ดพักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
+  const SC={normal:'bg3',forgot:'bb3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
 
   let te, modeLabel='';
   const viewD = filterDate || document.getElementById('view-date')?.value || '';
@@ -1345,8 +1344,8 @@ async function loadDateEntries(){
 }
 
 function renderRow(e, i, editMode=false){
-  const SM={normal:'✅ ปกติ',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
-  const SC={normal:'bg3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
+  const SM={normal:'✅ ปกติ',forgot:'📝 ลืมสแกน',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
+  const SC={normal:'bg3',forgot:'bb3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
   const id=e.id.replace(/'/g,"\'");
 
   if(editMode){
@@ -1364,7 +1363,8 @@ function renderRow(e, i, editMode=false){
       <td><input type="time" class="ed-inp" id="ed-out-${e.id}" value="${e.timeOut||''}"></td>
       <td><select class="ed-sel" id="ed-stat-${e.id}">
         <option value="normal"${e.status==='normal'?' selected':''}>✅ ปกติ</option>
-        <option value="late"${e.status==='late'?' selected':''}>⏰ สาย</option>
+        <option value="forgot"${e.status==='forgot'?' selected':''}>📝 ลืมสแกน</option>
+              <option value="late"${e.status==='late'?' selected':''}>⏰ สาย</option>
         <option value="absent"${e.status==='absent'?' selected':''}>❌ ขาดงาน</option>
         <option value="leave"${e.status==='leave'?' selected':''}>🌴 พักร้อน</option>
         <option value="sick"${e.status==='sick'?' selected':''}>🤒 ป่วย</option>
@@ -1391,9 +1391,9 @@ function renderRow(e, i, editMode=false){
     <td class="tdl" style="${isDraft?'color:#a0aec0;':''}">${e.name}${empBadge}${draftBadge}</td>
     <td style="font-size:11px;color:${isDraft?'#cbd5e0':'var(--mt)'};">${fmtDate(e.date)}</td>
     <td class="${isDraft?'':'tdi'}" style="${isDraft?'color:#cbd5e0;':''}">${inStr}</td>
-    <td class="${isDraft?'':''}${!isDraft&&normSlotDisp(e.slot1,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot1,e)}</td>
-    <td class="${!isDraft&&normSlotDisp(e.slot2,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot2,e)}</td>
-    <td class="${!isDraft&&normSlotDisp(e.slot3,e)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot3,e)}</td>
+    <td class="${isDraft?'':''}${!isDraft&&normSlotDisp(e.slot1)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot1)}</td>
+    <td class="${!isDraft&&normSlotDisp(e.slot2)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot2)}</td>
+    <td class="${!isDraft&&normSlotDisp(e.slot3)==='อยู่'?'tdok':'tdno'}">${normSlotDisp(e.slot3)}</td>
     <td class="${isDraft?'':'tdo'}" style="${isDraft?'color:#cbd5e0;':''}">${outStr}</td>
     <td><span class="bdg ${isDraft?'':''}${SC[e.status]}" style="${isDraft?'opacity:.5;':''}">${SM[e.status]}</span></td>
     <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
@@ -1433,15 +1433,12 @@ function saveEdit(id){
   const s1=document.getElementById('eds1-'+id)?.classList.contains('on');
   const s2=document.getElementById('eds2-'+id)?.classList.contains('on');
   const s3=document.getElementById('eds3-'+id)?.classList.contains('on');
-  const notime=['absent','leave','sick','personal','wfh','offsite'].includes(status);
   entries[idx]={...entries[idx],
     empId, name, date,
-    timeIn: notime?'':timeIn,
-    timeOut: notime?'':timeOut,
-    status,
-    slot1: notime?'-':(s1?'อยู่':'ไม่'),
-    slot2: notime?'-':(s2?'อยู่':'ไม่'),
-    slot3: notime?'-':(s3?'อยู่':'ไม่'),
+    timeIn, timeOut, status,
+    slot1: s1?'อยู่':'ไม่',
+    slot2: s2?'อยู่':'ไม่',
+    slot3: s3?'อยู่':'ไม่',
     _draft: false,
   };
   saveEnt();
@@ -1632,8 +1629,8 @@ function renderWeekly(){
           </div>
         </td>`;
       } else if(['absent','leave','sick','personal','wfh','offsite'].includes(en.status)){
-        // สถานะไม่ปกติ: IN/OUT → เวลา หรือ — , 3 ช่องกลาง → ไฮไลท์
-        const SB = {
+        // IN/OUT → แสดงเวลาเสมอ (หรือ—), 3 ช่องกลาง → ไฮไลท์สถานะ
+        const SB={
           absent:  {cls:'wabs',      lbl:'❌ ขาดงาน',  style:''},
           leave:   {cls:'wlv',       lbl:'🌴 พักร้อน', style:''},
           sick:    {cls:'wsk',       lbl:'🤒 ป่วย',     style:''},
@@ -1641,28 +1638,17 @@ function renderWeekly(){
           wfh:     {cls:'wfh',       lbl:'🏠 WFH',      style:'background:#E0F2FE;color:#0369a1;'},
           offsite: {cls:'woffsite',  lbl:'🚗 ออกนอก',  style:''},
         };
-        const sb = SB[en.status]||{cls:'',lbl:en.status,style:''};
-        const cellStyle = sb.style ? ` style="${sb.style}"` : '';
-        // IN: มีเวลา→แสดงเวลา+badge, ไม่มี→—
-        const inTd = en.timeIn
-          ? `<td class="win" style="vertical-align:middle;"><span style="display:block;font-size:9px;font-weight:700;">${sb.lbl}</span>${timeCell(en.timeIn)}</td>`
-          : `<td class="win">—</td>`;
-        // OUT: มีเวลา→แสดง, ไม่มี→—
-        const outTd = en.timeOut
-          ? `<td class="wout">${timeCell(en.timeOut)}</td>`
-          : `<td class="wout">—</td>`;
-        row += inTd;
-        row += `<td colspan="3" class="${sb.cls}"${cellStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
-        row += outTd;
+        const sb=SB[en.status]||{cls:'',lbl:en.status,style:''};
+        const cStyle=sb.style?` style="${sb.style}"` :'';
+        row+=`<td class="win">${timeCell(en.timeIn)}</td>`;
+        row+=`<td colspan="3" class="${sb.cls}"${cStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
+        row+=`<td class="wout">${timeCell(en.timeOut)}</td>`;
       } else {
-        // slot: normSlotDisp → 'อยู่'/'ไม่' เสมอ, IN/OUT → เวลาหรือ—
-        const s1 = normSlotDisp(en.slot1, en);
-        const s2 = normSlotDisp(en.slot2, en);
-        const s3 = normSlotDisp(en.slot3, en);
-        const sc1 = s1==='ไม่'?'wno':'wp';
-        const sc2 = s2==='ไม่'?'wno':'wp';
-        const sc3 = s3==='ไม่'?'wno':'wp';
-        row+=`<td class="win">${timeCell(en.timeIn)}${en.status==='late'?'<span class="wlate">สาย</span>':''}</td>
+        const s1=normSlotDisp(en.slot1), s2=normSlotDisp(en.slot2), s3=normSlotDisp(en.slot3);
+        const sc1=s1==='ไม่'?'wno':'wp', sc2=s2==='ไม่'?'wno':'wp', sc3=s3==='ไม่'?'wno':'wp';
+        const lateBadge = en.status==='late' ? '<span class="wlate">สาย</span>' : '';
+        const forgotBadge = en.status==='forgot' ? '<span class="wlate" style="color:#378ADD;">ลืมสแกน</span>' : '';
+        row+=`<td class="win">${timeCell(en.timeIn)}${lateBadge}${forgotBadge}</td>
           <td class="${sc1}">${s1}</td><td class="${sc2}">${s2}</td>
           <td class="${sc3}">${s3}</td><td class="wout">${timeCell(en.timeOut)}</td>`;
       }
@@ -1671,13 +1657,13 @@ function renderWeekly(){
   }).join('');
 }
 
-// slot display: มีเวลา→'อยู่', ไม่มีเวลา→'ไม่', ค่าชัดเจน('อยู่'/'ไม่')→ใช้เลย
-function normSlotDisp(v, en){
-  if(v==='อยู่'||v==='ไม่') return v;
-  return (en.timeIn||en.timeOut) ? 'อยู่' : 'ไม่';
+// slot: 'อยู่'/'ไม่' เท่านั้น — default 'อยู่'
+function normSlotDisp(v){
+  if(v==='ไม่') return 'ไม่';
+  return 'อยู่';
 }
-// IN/OUT cell: มีเวลา→แสดงเวลา, ไม่มี→'—' เท่านั้น ห้ามแสดง ไม่
-function timeCell(t){ return t ? t.substring(0,5) : '—'; }
+// IN/OUT: มีเวลา→แสดง, ไม่มี→—  ห้ามแสดง ไม่
+function timeCell(t){ return (t&&t.trim()&&t!=='-') ? t.substring(0,5) : '—'; }
 
 function noTimeSel(en, field){
   if(field==='in' && en.timeIn)
