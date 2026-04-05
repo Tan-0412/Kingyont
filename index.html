@@ -1041,9 +1041,8 @@ function init(){
     document.getElementById('sh-debug').style.display='';
     document.getElementById('conn-pill').style.display='';
     const sb2=document.getElementById('share-box'),si2=document.getElementById('share-url-txt');
-    const b2=window.location.origin+window.location.pathname;
-    si2.value=b2+'?gs='+encodeURIComponent(HARDCODED_URL);sb2.style.display='';
-    testConn();
+    si2.value=window.location.origin+window.location.pathname+'?gs='+encodeURIComponent(HARDCODED_URL);
+    sb2.style.display='';testConn();
   }
 }
 
@@ -1633,7 +1632,7 @@ function renderWeekly(){
           </div>
         </td>`;
       } else if(['absent','leave','sick','personal','wfh','offsite'].includes(en.status)){
-        // สถานะไม่ปกติ: IN/OUT แยก, ไฮไลท์เฉพาะ 3 ช่องกลาง
+        // สถานะไม่ปกติ: IN/OUT → เวลา หรือ — , 3 ช่องกลาง → ไฮไลท์
         const SB = {
           absent:  {cls:'wabs',      lbl:'❌ ขาดงาน',  style:''},
           leave:   {cls:'wlv',       lbl:'🌴 พักร้อน', style:''},
@@ -1644,37 +1643,41 @@ function renderWeekly(){
         };
         const sb = SB[en.status]||{cls:'',lbl:en.status,style:''};
         const cellStyle = sb.style ? ` style="${sb.style}"` : '';
-        const inCell = en.timeIn
-          ? `<td class="win">${en.timeIn}<span style="display:block;font-size:9px;font-weight:700;">${sb.lbl}</span></td>`
-          : `<td style="color:var(--mt);font-size:11px;">—</td>`;
-        const outCell = en.timeOut
-          ? `<td class="wout">${en.timeOut}</td>`
-          : `<td style="color:var(--mt);font-size:11px;">—</td>`;
-        row += inCell;
+        // IN: มีเวลา→แสดงเวลา+badge, ไม่มี→—
+        const inTd = en.timeIn
+          ? `<td class="win" style="vertical-align:middle;"><span style="display:block;font-size:9px;font-weight:700;">${sb.lbl}</span>${timeCell(en.timeIn)}</td>`
+          : `<td class="win">—</td>`;
+        // OUT: มีเวลา→แสดง, ไม่มี→—
+        const outTd = en.timeOut
+          ? `<td class="wout">${timeCell(en.timeOut)}</td>`
+          : `<td class="wout">—</td>`;
+        row += inTd;
         row += `<td colspan="3" class="${sb.cls}"${cellStyle} style="text-align:center;font-weight:700;">${sb.lbl}</td>`;
-        row += outCell;
+        row += outTd;
       } else {
-        // slot: ใช้ normSlotDisp — '-'/'' → 'อยู่' ถ้ามีเวลา, ไม่มีเวลา → 'ไม่'
+        // slot: normSlotDisp → 'อยู่'/'ไม่' เสมอ, IN/OUT → เวลาหรือ—
         const s1 = normSlotDisp(en.slot1, en);
         const s2 = normSlotDisp(en.slot2, en);
         const s3 = normSlotDisp(en.slot3, en);
         const sc1 = s1==='ไม่'?'wno':'wp';
         const sc2 = s2==='ไม่'?'wno':'wp';
         const sc3 = s3==='ไม่'?'wno':'wp';
-        row+=`<td class="win">${noTimeSel(en,'in')}</td>
-          <td class="${sc1}">${s1||'—'}</td><td class="${sc2}">${s2||'—'}</td>
-          <td class="${sc3}">${s3||'—'}</td><td class="wout">${noTimeSel(en,'out')}</td>`;
+        row+=`<td class="win">${timeCell(en.timeIn)}${en.status==='late'?'<span class="wlate">สาย</span>':''}</td>
+          <td class="${sc1}">${s1}</td><td class="${sc2}">${s2}</td>
+          <td class="${sc3}">${s3}</td><td class="wout">${timeCell(en.timeOut)}</td>`;
       }
     });
     return row+'</tr>';
   }).join('');
 }
 
+// slot display: มีเวลา→'อยู่', ไม่มีเวลา→'ไม่', ค่าชัดเจน('อยู่'/'ไม่')→ใช้เลย
 function normSlotDisp(v, en){
-  // '-' หรือ '' → default 'อยู่' ถ้ามีเวลา IN หรือ OUT, ไม่มีเวลา → 'ไม่'
-  if(v && v!=='-') return v;
+  if(v==='อยู่'||v==='ไม่') return v;
   return (en.timeIn||en.timeOut) ? 'อยู่' : 'ไม่';
 }
+// IN/OUT cell: มีเวลา→แสดงเวลา, ไม่มี→'—' เท่านั้น ห้ามแสดง ไม่
+function timeCell(t){ return t ? t.substring(0,5) : '—'; }
 
 function noTimeSel(en, field){
   if(field==='in' && en.timeIn)
