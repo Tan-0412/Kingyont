@@ -29,7 +29,8 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{--g:#1D9E75;--gd:#085041;--gl:#E1F5EE;--r:#E24B4A;--rl:#FCEBEB;--o:#EF9F27;--ol:#FAEEDA;--b:#378ADD;--bl:#E6F1FB;--p:#7F77DD;--pl:#EEEDFE;--bd:#e2e8f0;--tx:#1a202c;--mt:#718096;--bg:#f7fafc;}
 body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font-size:14px;}
-.wrap{max-width:1500px;margin:0 auto;padding:12px;}
+.wrap{max-width:100%;margin:0 auto;padding:8px 10px;}
+@media print{@page{size:A4 landscape;margin:5mm;}}
 .card{background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);}
 .topbar{background:linear-gradient(135deg,#1D9E75,#085041);padding:13px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 .tb-t{color:#fff;font-size:17px;font-weight:700;}
@@ -82,28 +83,28 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .btn-save{background:var(--g);color:#fff;border:none;padding:3px 9px;font-size:11px;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;}
 .btn-cancel{background:#fff;color:var(--mt);border:1px solid var(--bd);padding:3px 9px;font-size:11px;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;}
 /* weekly table */
-.wt{width:100%;border-collapse:collapse;font-size:11.5px;}
-.wt th,.wt td{border:1px solid #c8cdd5;padding:5px 7px;text-align:center;white-space:nowrap;}
-.wt thead tr:first-child th{font-size:12px;font-weight:700;padding:7px 8px;}
-.wh1{background:#1D9E75;color:#fff;}
+.wt{width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed;}
+.wt th,.wt td{border:1px solid #c8cdd5;padding:3px 3px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wt thead tr:first-child th{font-size:11px;font-weight:700;padding:5px 3px;}
+.wh1{background:#1D9E75;color:#fff;width:52px;}
 .whm{background:#FAEEDA;color:#744210;}.wht{background:#FBEAF0;color:#702459;}
 .whw{background:#C6F6D5;color:#1a4731;}.whth{background:#FED7AA;color:#744210;}
 .whf{background:#BEE3F8;color:#1a365d;}.whs{background:#E9D8FD;color:#44337a;}
-.whsub{font-size:10px;font-weight:600;color:var(--mt);background:#f8fafc;}
-.wname{text-align:left!important;font-weight:700;background:#fafafa;min-width:88px;}
-.wnum{background:#fafafa;color:var(--mt);font-size:10px;}
-.win{color:#1D9E75;font-weight:700;}.wout{color:#E24B4A;font-weight:700;}
-.wp{color:#378ADD;font-size:11px;font-weight:600;}
-.wno{background:#FFF5F5;color:#c53030;font-size:11px;font-weight:600;}
-.wabs{background:#FED7D7;color:#c53030;font-weight:700;font-size:11px;}
-.wlv{background:#FEEBC8;color:#744210;font-size:11px;}
-.wsk{background:#DBEAFE;color:#1e3a8a;font-size:11px;}
-.wpersonal{background:#FEF3C7;color:#92400E;font-size:11px;}
-.wfh{background:#E0F2FE;color:#0369a1;font-size:11px;}
-.woffsite{background:#F0FDF4;color:#166534;font-size:11px;}
-.whol{background:#EDE9FE;color:#4c1d95;font-size:11px;font-style:italic;}
-.wnc{background:#E2E8F0;color:#4a5568;font-size:11px;font-style:italic;}
-.wlate{color:#EF9F27;font-size:10px;font-weight:700;display:block;}
+.whsub{font-size:9px;font-weight:600;color:var(--mt);background:#f8fafc;width:42px;}
+.wname{text-align:left!important;font-weight:700;background:#fafafa;min-width:80px;max-width:100px;width:100px;}
+.wnum{background:#fafafa;color:var(--mt);font-size:9px;width:22px;padding:3px 2px;}
+.win{color:#1D9E75;font-weight:700;font-size:10px;}.wout{color:#E24B4A;font-weight:700;font-size:10px;}
+.wp{color:#378ADD;font-size:10px;font-weight:600;}
+.wno{background:#FFF5F5;color:#c53030;font-size:10px;font-weight:600;}
+.wabs{background:#FED7D7;color:#c53030;font-weight:700;font-size:10px;}
+.wlv{background:#FEEBC8;color:#744210;font-size:10px;}
+.wsk{background:#DBEAFE;color:#1e3a8a;font-size:10px;}
+.wpersonal{background:#FEF3C7;color:#92400E;font-size:10px;}
+.wfh{background:#E0F2FE;color:#0369a1;font-size:10px;}
+.woffsite{background:#F0FDF4;color:#166534;font-size:10px;}
+.whol{background:#EDE9FE;color:#4c1d95;font-size:10px;font-style:italic;}
+.wnc{background:#E2E8F0;color:#4a5568;font-size:10px;font-style:italic;}
+.wlate{color:#EF9F27;font-size:9px;font-weight:700;display:block;}
 /* stats */
 .sgrid{margin-bottom:16px;}
 .sc{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;text-align:center;}
@@ -302,14 +303,14 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
   </div>
   <div class="sgrid" id="stat-grid"></div>
   <div class="sh">สรุปรายบุคคล</div>
-  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd);border-radius:10px;margin-bottom:16px;">
+  <div style="width:100%;border:1px solid var(--bd);border-radius:10px;margin-bottom:16px;overflow-x:hidden;">
     <table class="tbl" style="min-width:600px;">
       <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>มาทำงาน</th><th>ขาดงาน</th><th>พักร้อน</th><th>ป่วย</th><th>ลากิจ</th><th>WFH</th><th>ออกนอก</th><th>สาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม./วัน</th></tr></thead>
       <tbody id="mon-body"></tbody>
     </table>
   </div>
   <div class="sh">เหตุการณ์สาย / ขาด / ลา</div>
-  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd);border-radius:10px;margin-bottom:16px;">
+  <div style="width:100%;border:1px solid var(--bd);border-radius:10px;margin-bottom:16px;overflow-x:hidden;">
     <table class="tbl" style="min-width:500px;">
       <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>วันที่</th><th>เหตุการณ์</th><th>IN</th><th>OUT</th></tr></thead>
       <tbody id="inc-body"></tbody>
