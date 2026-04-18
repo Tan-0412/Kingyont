@@ -2655,7 +2655,7 @@ async function importToRecord() {
   btn.textContent = '⏳ กำลังนำเข้า...';
 
   let imported = 0, skipped = 0, failed = 0;
-  const BATCH = 5; // ส่งทีละ 5 แถว (ป้องกัน URL ยาวเกิน)
+  const BATCH = 20; // ส่งทีละ 20 แถว
 
   try {
     // ส่งเป็น batch เพื่อไม่ให้ URL ยาวเกิน
