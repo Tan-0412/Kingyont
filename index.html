@@ -1657,7 +1657,7 @@ function renderWeekly(){
 
   const monLbl=MFULL[s.getMonth()];
   let head=`<tr><th class="wh1" rowspan="2" style="width:18px;min-width:18px;font-size:10px;">#</th>
-    <th style="text-align:left;background:#f8fafc;font-size:10px;font-weight:700;color:var(--mt);min-width:130px;width:150px;" rowspan="2">ที่ปรึกษาการขาย</th>`;
+    <th style="text-align:left;background:#1D9E75;color:#fff;font-size:10px;font-weight:700;min-width:130px;width:150px;padding:5px 8px;letter-spacing:0.03em;" rowspan="2">ที่ปรึกษาการขาย</th>`;
   days.forEach(d=>{
     head+=`<th colspan="5" class="${WCL[d.getDay()]}">${DAYS[d.getDay()]} ${String(d.getDate()).padStart(2,'0')}</th>`;
   });
