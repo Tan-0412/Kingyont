@@ -86,13 +86,13 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .wt{width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed;}
 .wt th,.wt td{border:1px solid #c8cdd5;padding:3px 3px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .wt thead tr:first-child th{font-size:11px;font-weight:700;padding:5px 3px;}
-.wh1{background:#1D9E75;color:#fff;width:52px;}
+.wh1{background:#1D9E75;color:#fff;width:18px;min-width:18px;}
 .whm{background:#FAEEDA;color:#744210;}.wht{background:#FBEAF0;color:#702459;}
 .whw{background:#C6F6D5;color:#1a4731;}.whth{background:#FED7AA;color:#744210;}
 .whf{background:#BEE3F8;color:#1a365d;}.whs{background:#E9D8FD;color:#44337a;}
 .whsub{font-size:9px;font-weight:600;color:var(--mt);background:#f8fafc;width:42px;}
-.wname{text-align:left!important;font-weight:700;background:#fafafa;min-width:80px;max-width:100px;width:100px;}
-.wnum{background:#fafafa;color:var(--mt);font-size:9px;width:22px;padding:3px 2px;}
+.wname{text-align:left!important;font-weight:700;background:#fafafa;min-width:130px;max-width:160px;width:150px;}
+.wnum{background:#fafafa;color:var(--mt);font-size:9px;width:16px;min-width:16px;padding:3px 1px;text-align:center;}
 .win{color:#1D9E75;font-weight:700;font-size:10px;}.wout{color:#E24B4A;font-weight:700;font-size:10px;}
 .wp{color:#378ADD;font-size:10px;font-weight:600;}
 .wno{background:#FFF5F5;color:#c53030;font-size:10px;font-weight:600;}
@@ -1656,8 +1656,8 @@ function renderWeekly(){
   }).join('');
 
   const monLbl=MFULL[s.getMonth()];
-  let head=`<tr><th class="wh1" rowspan="2">${monLbl}</th>
-    <th style="text-align:left;background:#f8fafc;font-size:10px;font-weight:700;color:var(--mt);" rowspan="2">ชื่อ</th>`;
+  let head=`<tr><th class="wh1" rowspan="2" style="width:18px;min-width:18px;font-size:10px;">#</th>
+    <th style="text-align:left;background:#f8fafc;font-size:10px;font-weight:700;color:var(--mt);min-width:130px;width:150px;" rowspan="2">ที่ปรึกษาการขาย</th>`;
   days.forEach(d=>{
     head+=`<th colspan="5" class="${WCL[d.getDay()]}">${DAYS[d.getDay()]} ${String(d.getDate()).padStart(2,'0')}</th>`;
   });
