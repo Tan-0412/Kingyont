@@ -29,7 +29,10 @@ self.addEventListener('activate', e => {
 });
 
 // fetch — network first, fallback to cache
+// ✅ ข้าม POST และ non-GET ทั้งหมด — cache รองรับแค่ GET
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+
   e.respondWith(
     fetch(e.request)
       .then(res => {
