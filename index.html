@@ -2547,16 +2547,16 @@ function onImportDrop(e) {
 
 function onImportFileSelected(input) {
   const file = input.files[0];
-  input.value = ''; // reset ก่อน process เพื่อให้ onchange fire ได้ทุกครั้ง
+  input.value = ''; // reset ก่อน เพื่อให้ onchange fire ได้ทุกครั้ง
   if (file) {
-    resetImport();   // ล้างสถานะเก่าทั้งหมดก่อนเริ่มอ่านไฟล์ใหม่
+    resetImport();   // ล้างสถานะเก่าก่อนเริ่มอ่านไฟล์ใหม่
     processImportFile(file);
   }
 }
 
 async function processImportFile(file) {
   if (!file.name.endsWith('.xlsx')) {
-    showToast('❌ รองรับเฉพาะไฟล์ .xlsx เท่านั้น', 'r'); return;
+    toast('❌ รองรับเฉพาะไฟล์ .xlsx เท่านั้น', 'r'); return;
   }
   try {
     await ensureXLSX();
@@ -2565,7 +2565,7 @@ async function processImportFile(file) {
     const ws  = wb.Sheets[wb.SheetNames[0]];
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-    if (raw.length < 2) { showToast('❌ ไฟล์ว่างหรือไม่มีข้อมูล', 'r'); return; }
+    if (raw.length < 2) { toast('❌ ไฟล์ว่างหรือไม่มีข้อมูล', 'r'); return; }
 
     // หา header row (แถวที่มี รหัสพนักงาน หรือ ชื่อ)
     let hdrIdx = 0;
@@ -2582,7 +2582,7 @@ async function processImportFile(file) {
     const idxDT   = hdrs.findIndex(h => h.includes('วัน') || h.includes('เวลา') || h.toLowerCase().includes('date'));
 
     if (idxId < 0 || idxDT < 0) {
-      showToast('❌ ไม่พบคอลัมน์ "รหัสพนักงาน" หรือ "วัน/เวลา"', 'r'); return;
+      toast('❌ ไม่พบคอลัมน์ "รหัสพนักงาน" หรือ "วัน/เวลา"', 'r'); return;
     }
 
     // แปลงข้อมูล
@@ -2615,7 +2615,7 @@ async function processImportFile(file) {
     }
 
     if (importRows.length === 0) {
-      showToast('❌ ไม่พบข้อมูลในไฟล์', 'r'); return;
+      toast('❌ ไม่พบข้อมูลในไฟล์', 'r'); return;
     }
 
     // แสดง file info
@@ -2627,7 +2627,7 @@ async function processImportFile(file) {
     renderImportPreview();
 
   } catch(e) {
-    showToast('❌ อ่านไฟล์ไม่สำเร็จ: ' + e.message, 'r');
+    toast('❌ อ่านไฟล์ไม่สำเร็จ: ' + e.message, 'r');
   }
 }
 
@@ -2650,8 +2650,8 @@ function renderImportPreview() {
 }
 
 async function importToRecord() {
-  if (!importRows.length) { showToast('❌ ไม่มีข้อมูลที่จะนำเข้า', 'r'); return; }
-  if (!shUrl) { showToast('❌ ยังไม่ได้เชื่อมต่อ Google Sheets', 'r'); return; }
+  if (!importRows.length) { toast('❌ ไม่มีข้อมูลที่จะนำเข้า', 'r'); return; }
+  if (!shUrl) { toast('❌ ยังไม่ได้เชื่อมต่อ Google Sheets', 'r'); return; }
 
   const btn = document.getElementById('import-confirm-btn');
   btn.disabled = true;
@@ -2694,10 +2694,10 @@ async function importToRecord() {
       </div>
       <button class="btn bo bsm" onclick="resetImport()">📂 นำเข้าไฟล์ใหม่</button>`;
 
-    showToast(`✅ นำเข้าสำเร็จ ${imported} รายการ, ข้าม ${skipped} ซ้ำ`, 'ok');
+    toast(`✅ นำเข้าสำเร็จ ${imported} รายการ, ข้าม ${skipped} ซ้ำ`, 'g');
 
   } catch(e) {
-    showToast('❌ ' + e.message, 'r');
+    toast('❌ ' + e.message, 'r');
   } finally {
     btn.disabled = false;
     btn.textContent = `✅ นำเข้า ${importRows.length} รายการ`;
