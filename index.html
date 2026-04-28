@@ -2070,6 +2070,12 @@ init();
 //  นำเข้าข้อมูลแสกน (Import from Excel)
 // ════════════════════════════════════════
 
+// helpers ปลอดภัย — กันกรณี element ไม่เจอ
+function _q(id){ return document.getElementById(id); }
+function _setText(id, t){ const el=_q(id); if(el) el.textContent = t; }
+function _setHTML(id, h){ const el=_q(id); if(el) el.innerHTML = h; }
+function _setDisp(id, v){ const el=_q(id); if(el) el.style.display = v; }
+
 // โหลด SheetJS เมื่อเข้าแท็บ Import
 let _xlsxLoaded = false;
 function ensureXLSX() {
@@ -2087,18 +2093,20 @@ let importRows = []; // ข้อมูลที่อ่านจาก Excel
 
 function onImportDrop(e) {
   e.preventDefault();
-  document.getElementById('import-dropzone').style.background = '#F0FDF4';
-  const file = e.dataTransfer.files[0];
-  if (file) processImportFile(file);
+  const dz = _q('import-dropzone'); if(dz) dz.style.background = '#F0FDF4';
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) {
+    resetImport();
+    processImportFile(file);
+  }
 }
 
 function onImportFileSelected(input) {
+  if (!input || !input.files || !input.files[0]) return;
   const file = input.files[0];
-  input.value = ''; // reset ก่อน เพื่อให้ onchange fire ได้ทุกครั้ง
-  if (file) {
-    resetImport();   // ล้างสถานะเก่าก่อนเริ่มอ่านไฟล์ใหม่
-    processImportFile(file);
-  }
+  // ล้างสถานะเก่าก่อน (จะ reset input.value = '' ด้วย)
+  resetImport();
+  processImportFile(file);
 }
 
 async function processImportFile(file) {
@@ -2166,9 +2174,9 @@ async function processImportFile(file) {
     }
 
     // แสดง file info
-    document.getElementById('import-file-info').style.display = '';
-    document.getElementById('import-file-name').textContent = file.name;
-    document.getElementById('import-file-rows').textContent = importRows.length;
+    _setDisp('import-file-info', '');
+    _setText('import-file-name', file.name);
+    _setText('import-file-rows', importRows.length);
 
     // แสดง preview 10 แถวแรก
     renderImportPreview();
@@ -2180,20 +2188,22 @@ async function processImportFile(file) {
 
 function renderImportPreview() {
   const preview = importRows.slice(0, 10);
-  document.getElementById('import-preview-wrap').style.display = '';
-  document.getElementById('import-result').style.display = 'none';
-  document.getElementById('import-count-lbl').textContent = importRows.length;
-  document.getElementById('import-summary').textContent = `ทั้งหมด ${importRows.length} รายการ`;
-
-  document.getElementById('import-preview-body').innerHTML = preview.map((r, i) => `
+  _setDisp('import-preview-wrap', '');
+  _setDisp('import-result', 'none');
+  _setText('import-count-lbl', importRows.length);
+  _setText('import-summary', `ทั้งหมด ${importRows.length} รายการ`);
+  _setHTML('import-preview-body', preview.map((r, i) => `
     <tr class="${i%2===1?'alt':''}">
       <td style="color:var(--mt);font-size:11px;">${i+1}</td>
       <td style="font-family:monospace;font-size:12px;font-weight:700;">${r.empId}</td>
-      <td style="text-align:left;">${r.name}</td>
-      <td style="font-size:12px;">${r.dept}</td>
+      <td style="text-align:left;">${r.name||''}</td>
+      <td style="font-size:12px;">${r.dept||''}</td>
       <td style="font-family:monospace;font-size:12px;">${r.datetime}</td>
       <td><span style="font-size:11px;color:var(--g);">รอนำเข้า</span></td>
-    </tr>`).join('');
+    </tr>`).join(''));
+  // restore confirm button state
+  const btn = _q('import-confirm-btn');
+  if (btn) { btn.disabled = false; btn.innerHTML = `✅ นำเข้า <span id="import-count-lbl">${importRows.length}</span> รายการ`; }
 }
 
 async function importToRecord() {
@@ -2204,11 +2214,12 @@ async function importToRecord() {
   btn.disabled = true;
   btn.textContent = '⏳ กำลังนำเข้า...';
 
+  const totalRows = importRows.length;
   try {
     const res = await fetch(shUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'appendRecord', rows: importRows }),
+      body: JSON.stringify({ action: 'importScanBatch', rows: importRows, autoSync: true }),
       redirect: 'follow'
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2216,10 +2227,12 @@ async function importToRecord() {
     if (!d.ok) throw new Error(d.error || 'เกิดข้อผิดพลาดใน Apps Script');
     const imported = d.imported || 0;
     const skipped  = d.skipped  || 0;
+    const syncDays = Array.isArray(d.sync) ? d.sync.length : 0;
 
-    // แสดงผล
-    document.getElementById('import-result').style.display = '';
-    document.getElementById('import-result-body').innerHTML = `
+    // แสดงผล — ซ่อน preview, ให้เหลือแค่ผลลัพธ์
+    _setDisp('import-preview-wrap', 'none');
+    _setDisp('import-result', '');
+    _setHTML('import-result-body', `
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
         <div style="background:#D1FAE5;border:1px solid #6EE7B7;border-radius:10px;padding:12px 20px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#065F46;">${imported}</div>
@@ -2229,27 +2242,29 @@ async function importToRecord() {
           <div style="font-size:28px;font-weight:700;color:#713F12;">${skipped}</div>
           <div style="font-size:11px;color:#713F12;font-weight:600;">⏭ ข้ามซ้ำ</div>
         </div>
+        ${syncDays ? `<div style="background:#DBEAFE;border:1px solid #93C5FD;border-radius:10px;padding:12px 20px;text-align:center;"><div style="font-size:28px;font-weight:700;color:#1E3A8A;">${syncDays}</div><div style="font-size:11px;color:#1E3A8A;font-weight:600;">🔄 Sync (วัน)</div></div>` : ''}
       </div>
-      <button class="btn bo bsm" onclick="resetImport()">📂 นำเข้าไฟล์ใหม่</button>`;
-    toast(`✅ นำเข้าสำเร็จ ${imported} รายการ, ข้าม ${skipped} ซ้ำ`, 'g');
+      <button class="btn bo bsm" onclick="resetImport()">📂 นำเข้าไฟล์ใหม่</button>`);
+    toast(`✅ นำเข้าสำเร็จ ${imported} รายการ, ข้าม ${skipped} ซ้ำ${syncDays?`, sync ${syncDays} วัน`:''}`, 'g');
 
   } catch(e) {
     toast('❌ ' + e.message, 'r');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = `✅ นำเข้า ${importRows.length} รายการ`;
+    // ถ้า error — เปิดปุ่มกลับคืนให้กดลองใหม่ได้
+    if (btn) { btn.disabled = false; btn.innerHTML = `✅ นำเข้า <span id="import-count-lbl">${totalRows}</span> รายการ`; }
   }
 }
 
 function resetImport() {
   importRows = [];
-  const ids = ['import-file-info','import-preview-wrap','import-result'];
-  ids.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
-  const fn = document.getElementById('import-file-name'); if(fn) fn.textContent = '';
-  const fr = document.getElementById('import-file-rows'); if(fr) fr.textContent = '';
-  const pb = document.getElementById('import-preview-body'); if(pb) pb.innerHTML = '';
-  const fi = document.getElementById('import-file-input'); if(fi) fi.value = '';
-  const dz = document.getElementById('import-dropzone'); if(dz) dz.style.background = '#F0FDF4';
+  ['import-file-info','import-preview-wrap','import-result'].forEach(id => _setDisp(id, 'none'));
+  _setText('import-file-name', '');
+  _setText('import-file-rows', '');
+  _setHTML('import-preview-body', '');
+  _setHTML('import-result-body', '');
+  const fi = _q('import-file-input'); if(fi) fi.value = '';
+  const dz = _q('import-dropzone'); if(dz) dz.style.background = '#F0FDF4';
+  const btn = _q('import-confirm-btn');
+  if (btn) { btn.disabled = false; btn.innerHTML = `✅ นำเข้า <span id="import-count-lbl">0</span> รายการ`; }
 }
 </script>
 </body>
