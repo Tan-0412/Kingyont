@@ -2655,23 +2655,25 @@ async function importToRecord() {
 
   const btn = document.getElementById('import-confirm-btn');
   btn.disabled = true;
-  btn.textContent = `⏳ กำลังนำเข้า ${importRows.length} รายการ...`;
+  btn.textContent = '⏳ กำลังนำเข้า...';
+
+  let imported = 0, skipped = 0, failed = 0;
+  const BATCH = 20; // ส่งทีละ 20 แถว
 
   try {
-    // ✅ ส่งทีเดียวทั้งหมดผ่าน POST — ไม่มี URL length limit ไม่ต้องแบ่ง batch
-    const res = await fetch(shUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' }, // GAS ต้องการ text/plain
-      body: JSON.stringify({ action: 'appendRecord', rows: importRows }),
-      redirect: 'follow'
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const d = await res.json();
-    if (!d.ok) throw new Error(d.error || 'เกิดข้อผิดพลาดใน Google Apps Script');
-
-    const imported = d.imported || 0;
-    const skipped  = d.skipped  || 0;
+    // ส่งเป็น batch เพื่อไม่ให้ URL ยาวเกิน
+    for (let i = 0; i < importRows.length; i += BATCH) {
+      const batch = importRows.slice(i, i + BATCH);
+      const payload = JSON.stringify(batch);
+      const d = await callGS({ action: 'appendRecord', rows: payload });
+      if (d.ok) {
+        imported += d.imported || 0;
+        skipped  += d.skipped  || 0;
+      } else {
+        failed += batch.length;
+      }
+      btn.textContent = `⏳ ${i + batch.length}/${importRows.length}`;
+    }
 
     // แสดงผล
     document.getElementById('import-result').style.display = '';
@@ -2685,6 +2687,10 @@ async function importToRecord() {
           <div style="font-size:28px;font-weight:700;color:#713F12;">${skipped}</div>
           <div style="font-size:11px;color:#713F12;font-weight:600;">⏭ ข้ามซ้ำ</div>
         </div>
+        ${failed > 0 ? `<div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:10px;padding:12px 20px;text-align:center;">
+          <div style="font-size:28px;font-weight:700;color:#991B1B;">${failed}</div>
+          <div style="font-size:11px;color:#991B1B;font-weight:600;">❌ ผิดพลาด</div>
+        </div>` : ''}
       </div>
       <button class="btn bo bsm" onclick="resetImport()">📂 นำเข้าไฟล์ใหม่</button>`;
 
@@ -2700,14 +2706,13 @@ async function importToRecord() {
 
 function resetImport() {
   importRows = [];
-  document.getElementById('import-file-info').style.display = 'none';
-  document.getElementById('import-file-name').textContent = '';
-  document.getElementById('import-file-rows').textContent = '';
-  document.getElementById('import-preview-wrap').style.display = 'none';
-  document.getElementById('import-preview-body').innerHTML = '';
-  document.getElementById('import-result').style.display = 'none';
-  document.getElementById('import-file-input').value = '';
-  document.getElementById('import-dropzone').style.background = '#F0FDF4';
+  const ids = ['import-file-info','import-preview-wrap','import-result'];
+  ids.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  const fn = document.getElementById('import-file-name'); if(fn) fn.textContent = '';
+  const fr = document.getElementById('import-file-rows'); if(fr) fr.textContent = '';
+  const pb = document.getElementById('import-preview-body'); if(pb) pb.innerHTML = '';
+  const fi = document.getElementById('import-file-input'); if(fi) fi.value = '';
+  const dz = document.getElementById('import-dropzone'); if(dz) dz.style.background = '#F0FDF4';
 }
 </script>
 </body>
