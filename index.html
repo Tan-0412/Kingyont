@@ -2547,8 +2547,11 @@ function onImportDrop(e) {
 
 function onImportFileSelected(input) {
   const file = input.files[0];
-  if (file) processImportFile(file);
-  input.value = '';
+  input.value = ''; // reset ก่อน process เพื่อให้ onchange fire ได้ทุกครั้ง
+  if (file) {
+    resetImport();   // ล้างสถานะเก่าทั้งหมดก่อนเริ่มอ่านไฟล์ใหม่
+    processImportFile(file);
+  }
 }
 
 async function processImportFile(file) {
@@ -2655,7 +2658,7 @@ async function importToRecord() {
   btn.textContent = '⏳ กำลังนำเข้า...';
 
   let imported = 0, skipped = 0, failed = 0;
-  const BATCH = 10; // ส่งทีละ 20 แถว
+  const BATCH = 20; // ส่งทีละ 20 แถว
 
   try {
     // ส่งเป็น batch เพื่อไม่ให้ URL ยาวเกิน
@@ -2704,7 +2707,10 @@ async function importToRecord() {
 function resetImport() {
   importRows = [];
   document.getElementById('import-file-info').style.display = 'none';
+  document.getElementById('import-file-name').textContent = '';
+  document.getElementById('import-file-rows').textContent = '';
   document.getElementById('import-preview-wrap').style.display = 'none';
+  document.getElementById('import-preview-body').innerHTML = '';
   document.getElementById('import-result').style.display = 'none';
   document.getElementById('import-file-input').value = '';
   document.getElementById('import-dropzone').style.background = '#F0FDF4';
