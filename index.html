@@ -102,6 +102,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .wpersonal{background:#FEF3C7;color:#92400E;font-size:10px;}
 .wfh{background:#E0F2FE;color:#0369a1;font-size:10px;}
 .woffsite{background:#F0FDF4;color:#166534;font-size:10px;}
+.wshowroom{background:#F3E8FF;color:#6b21a8;font-size:10px;}
 .whol{background:#EDE9FE;color:#4c1d95;font-size:10px;font-style:italic;}
 .wnc{background:#E2E8F0;color:#4a5568;font-size:10px;font-style:italic;}
 .wlate{color:#EF9F27;font-size:9px;font-weight:700;display:block;}
@@ -114,6 +115,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);min-height:100vh;font
 .bdg{display:inline-block;padding:3px 8px;border-radius:11px;font-size:11px;font-weight:700;}
 .bg3{background:var(--gl);color:var(--gd);}.br3{background:var(--rl);color:#c53030;}
 .bo3{background:var(--ol);color:#744210;}.bb3{background:var(--bl);color:#1a365d;}
+.bp3{background:#F3E8FF;color:#6b21a8;}
 /* alert */
 .alrt{border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:12px;}
 .aly{background:#FFFBEB;border:1px solid #F6E05E;color:#744210;}
@@ -219,7 +221,8 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
           <option value="sick">🤒 ลาป่วย</option>
           <option value="personal">📋 ลากิจ</option>
           <option value="wfh">🏠 Work from home</option>
-          <option value="offsite">🚗 ออกนอกสถานที่</option>
+          <option value="offsite">🚗 ทำงานนอกสถานที่</option>
+          <option value="noshowroom">🚪 ไม่อยู่โชว์รูม</option>
         </select>
       </div>
     </div>
@@ -280,7 +283,8 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
       <div class="lgdi"><div class="lgdd" style="background:#DBEAFE;"></div>ป่วย</div>
       <div class="lgdi"><div class="lgdd" style="background:#FEF3C7;"></div>ลากิจ</div>
       <div class="lgdi"><div class="lgdd" style="background:#E0F2FE;"></div>WFH</div>
-      <div class="lgdi"><div class="lgdd" style="background:#F0FDF4;"></div>ออกนอก</div>
+      <div class="lgdi"><div class="lgdd" style="background:#F0FDF4;"></div>ทำงานนอก</div>
+      <div class="lgdi"><div class="lgdd" style="background:#F3E8FF;"></div>ไม่อยู่โชว์รูม</div>
       <div class="lgdi"><div class="lgdd" style="background:#EDE9FE;"></div>หยุด/ไม่เช็ค</div>
       <div class="lgdi"><div class="lgdd" style="background:#fffbf0;border:1px solid #e2d9c5;"></div>ไม่มีข้อมูล</div>
     </div>
@@ -306,7 +310,7 @@ pre.code{background:#1a202c;color:#68d391;padding:14px;border-radius:10px;font-s
   <div class="sh">สรุปรายบุคคล</div>
   <div style="width:100%;border:1px solid var(--bd);border-radius:10px;margin-bottom:16px;overflow-x:hidden;">
     <table class="tbl" style="min-width:600px;">
-      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>มาทำงาน</th><th>ขาดงาน</th><th>พักร้อน</th><th>ป่วย</th><th>ลากิจ</th><th>WFH</th><th>ออกนอก</th><th>สาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม./วัน</th></tr></thead>
+      <thead><tr><th>#</th><th style="text-align:left;">ชื่อ</th><th>มาทำงาน</th><th>ขาดงาน</th><th>พักร้อน</th><th>ป่วย</th><th>ลากิจ</th><th>WFH</th><th>ทำงานนอก</th><th>ไม่อยู่โชว์รูม</th><th>สาย</th><th>เฉลี่ย IN</th><th>เฉลี่ย OUT</th><th>ชม./วัน</th></tr></thead>
       <tbody id="mon-body"></tbody>
     </table>
   </div>
@@ -793,7 +797,7 @@ function renderEmps(){
 
 function onStatChange(){
   const s=document.getElementById('ep-stat').value;
-  const dis=['absent','leave','sick','personal','wfh','offsite'].includes(s);
+  const dis=['absent','leave','sick','personal','wfh','offsite','noshowroom'].includes(s);
   document.getElementById('ep-in').disabled=dis;
   document.getElementById('ep-out').disabled=dis;
   document.querySelectorAll('.slt').forEach(b=>{b.disabled=dis;if(dis)b.classList.remove('on');});
@@ -882,8 +886,8 @@ function delEntry(id){
 }
 
 function renderToday(filterDate){
-  const SM={normal:'✅ ปกติ',forgot:'📝 ลืมสแกน',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:' ดพักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
-  const SC={normal:'bg3',forgot:'bb3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
+  const SM={normal:'✅ ปกติ',forgot:'📝 ลืมสแกน',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:' ดพักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ทำงานนอก',noshowroom:'🚪 ไม่อยู่โชว์รูม'};
+  const SC={normal:'bg3',forgot:'bb3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3',noshowroom:'bp3'};
 
   let te, modeLabel='';
   const viewD = filterDate || document.getElementById('view-date')?.value || '';
@@ -957,8 +961,8 @@ async function loadDateEntries(){
 }
 
 function renderRow(e, i, editMode=false){
-  const SM={normal:'✅ ปกติ',forgot:'📝 ลืมสแกน',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
-  const SC={normal:'bg3',forgot:'bb3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
+  const SM={normal:'✅ ปกติ',forgot:'📝 ลืมสแกน',late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ทำงานนอก',noshowroom:'🚪 ไม่อยู่โชว์รูม'};
+  const SC={normal:'bg3',forgot:'bb3',late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3',noshowroom:'bp3'};
   const id=e.id.replace(/'/g,"\'");
 
   if(editMode){
@@ -983,7 +987,8 @@ function renderRow(e, i, editMode=false){
         <option value="sick"${e.status==='sick'?' selected':''}>🤒 ป่วย</option>
         <option value="personal"${e.status==='personal'?' selected':''}>📋 ลากิจ</option>
         <option value="wfh"${e.status==='wfh'?' selected':''}>🏠 WFH</option>
-        <option value="offsite"${e.status==='offsite'?' selected':''}>🚗 ออกนอกสถานที่</option>
+        <option value="offsite"${e.status==='offsite'?' selected':''}>🚗 ทำงานนอกสถานที่</option>
+        <option value="noshowroom"${e.status==='noshowroom'?' selected':''}>🚪 ไม่อยู่โชว์รูม</option>
       </select></td>
       <td style="white-space:nowrap;display:flex;gap:4px;padding:7px 6px;">
         <button class="btn-save" onclick="saveEdit('${id}')">💾 บันทึก</button>
@@ -1239,11 +1244,12 @@ function renderWeekly(){
               <option value="sick">🤒 ลาป่วย</option>
               <option value="personal">📋 ลากิจ</option>
               <option value="wfh">🏠 Work from home</option>
-              <option value="offsite">🚗 ออกนอกสถานที่</option>
+              <option value="offsite">🚗 ทำงานนอกสถานที่</option>
+              <option value="noshowroom">🚪 ไม่อยู่โชว์รูม</option>
             </select>
           </div>
         </td>`;
-      } else if(['absent','leave','sick','personal','wfh','offsite'].includes(en.status)){
+      } else if(['absent','leave','sick','personal','wfh','offsite','noshowroom'].includes(en.status)){
         // IN/OUT → แสดงเวลาเสมอ (หรือ—), 3 ช่องกลาง → ไฮไลท์สถานะ
         const SB={
           absent:  {cls:'wabs',      lbl:'❌ ขาดงาน',  style:''},
@@ -1251,7 +1257,8 @@ function renderWeekly(){
           sick:    {cls:'wsk',       lbl:'🤒 ป่วย',     style:''},
           personal:{cls:'wpersonal', lbl:'📋 ลากิจ',   style:''},
           wfh:     {cls:'wfh',       lbl:'🏠 WFH',      style:'background:#E0F2FE;color:#0369a1;'},
-          offsite: {cls:'woffsite',  lbl:'🚗 ออกนอก',  style:''},
+          offsite: {cls:'woffsite',  lbl:'🚗 ทำงานนอก',  style:''},
+          noshowroom:{cls:'wshowroom', lbl:'🚪 ไม่อยู่โชว์รูม', style:''},
         };
         const sb=SB[en.status]||{cls:'',lbl:en.status,style:''};
         const cStyle=sb.style?` style="${sb.style}"` :'';
@@ -1324,6 +1331,7 @@ function renderMonthly(){
   const ps=me.filter(e=>e.status==='personal').length;
   const wf=me.filter(e=>e.status==='wfh').length;
   const os=me.filter(e=>e.status==='offsite').length;
+  const nsr=me.filter(e=>e.status==='noshowroom').length;
   const totalLv=lv+sk+ps;
   const wd=new Set(me.filter(e=>e.status!=='absent').map(e=>e.date)).size;
   const norm2=me.filter(e=>['normal','late'].includes(e.status)).length;
@@ -1338,7 +1346,8 @@ function renderMonthly(){
       <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#378ADD;display:inline-block;"></span>ป่วย</span>
       <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#92400E;display:inline-block;"></span>ลากิจ</span>
       <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#0369a1;display:inline-block;"></span>WFH</span>
-      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#166534;display:inline-block;"></span>ออกนอก</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#166534;display:inline-block;"></span>ทำงานนอก</span>
+      <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#6b21a8;display:inline-block;"></span>ไม่อยู่โชว์รูม</span>
       <span style="display:flex;align-items:center;gap:3px;"><span style="width:9px;height:9px;border-radius:2px;background:#EF9F27;display:inline-block;"></span>สาย</span>
     </div>
     <div style="position:relative;width:100%;height:180px;"><canvas id="stat-chart"></canvas></div>`;
@@ -1350,10 +1359,10 @@ function renderMonthly(){
     window._statChart=new Chart(ctx,{
       type:'bar',
       data:{
-        labels:['ขาดงาน','พักร้อน','ป่วย','ลากิจ','WFH','ออกนอก','สาย'],
+        labels:['ขาดงาน','พักร้อน','ป่วย','ลากิจ','WFH','ทำงานนอก','ไม่อยู่โชว์รูม','สาย'],
         datasets:[{
-          data:[ab,lv,sk,ps,wf,os,lt],
-          backgroundColor:['#E24B4A','#7F77DD','#378ADD','#92400E','#0369a1','#166534','#EF9F27'],
+          data:[ab,lv,sk,ps,wf,os,nsr,lt],
+          backgroundColor:['#E24B4A','#7F77DD','#378ADD','#92400E','#0369a1','#166534','#6b21a8','#EF9F27'],
           borderRadius:5,
           borderSkipped:false,
         }]
@@ -1404,6 +1413,7 @@ function renderMonthly(){
       <td>${cs('personal')||'0'}</td>
       <td>${cs('wfh')||'0'}</td>
       <td>${cs('offsite')||'0'}</td>
+      <td>${cs('noshowroom')||'0'}</td>
       <td>${cs('late')>0?`<span class="bdg bo3">${cs('late')}</span>`:'0'}</td>
       <td style="color:var(--g);font-weight:700;">${ins.length?avgt(ins):'—'}</td>
       <td style="color:var(--r);font-weight:700;">${outs.length?avgt(outs):'—'}</td>
@@ -1411,8 +1421,8 @@ function renderMonthly(){
   }).join('');
 
   // เหตุการณ์ — ขยายให้ครอบคลุมทุกสถานะที่ไม่ใช่ปกติ
-  const SL={late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ลาป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ออกนอก'};
-  const SC2={late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3'};
+  const SL={late:'⏰ สาย',absent:'❌ ขาดงาน',leave:'🌴 พักร้อน',sick:'🤒 ลาป่วย',personal:'📋 ลากิจ',wfh:'🏠 WFH',offsite:'🚗 ทำงานนอก',noshowroom:'🚪 ไม่อยู่โชว์รูม'};
+  const SC2={late:'bo3',absent:'br3',leave:'bo3',sick:'bb3',personal:'bo3',wfh:'bb3',offsite:'bg3',noshowroom:'bp3'};
   const inc=me.filter(e=>Object.keys(SL).includes(e.status)).sort((a,b)=>a.date.localeCompare(b.date)||
     (emps.find(x=>x.empId===a.empId||x.name===a.name)||{order:9999}).order -
     (emps.find(x=>x.empId===b.empId||x.name===b.name)||{order:9999}).order
